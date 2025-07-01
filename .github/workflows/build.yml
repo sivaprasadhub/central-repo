@@ -1,0 +1,22 @@
+name: Build Image from App Repo
+
+on:
+  repository_dispatch:
+    types: [build-image]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone app repo
+        uses: actions/checkout@v3
+        with:
+          repository: sivaprasadhub/app-repo
+          token: ${{ secrets.APP_REPO_TOKEN }}
+          path: app-repo
+
+      - name: Build Docker image
+        run: |
+          cd app-repo
+          docker build -t hello-from-app-repo:latest .
