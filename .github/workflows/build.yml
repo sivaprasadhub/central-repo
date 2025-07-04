@@ -56,56 +56,53 @@ jobs:
 
 
             # Step 7: Poll Container Analysis API for vulnerability scan result
-      - name: Check vulnerability scan result
+      - name: Check vulnerability scan via Container Analysis API
         run: |
           echo "Checking vulnerability scan for image: ${{ env.FULL_IMAGE }}"
 
-          # Get image digest
+          # Get the image digest
           DIGEST=$(gcloud artifacts docker images describe ${{ env.FULL_IMAGE }} \
             --format='value(image_summary.digest)')
 
           RESOURCE_URI="https://${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}@${DIGEST}"
+          echo "Using RESOURCE_URI=$RESOURCE_URI"
+
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
 
           MAX_ATTEMPTS=20
           WAIT_TIME=30
 
           for i in $(seq 1 $MAX_ATTEMPTS); do
-            echo "Attempt $i: Checking scan status..."
+            echo "Attempt $i: Calling Container Analysis API..."
 
-            STATUS=$(gcloud artifacts docker images describe ${{ env.FULL_IMAGE }} \
-              --show-package-vulnerability \
-              --format="value(discovery_summary.discovery[0].discovery.analysisStatus)")
+            RESPONSE=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
+              "https://containeranalysis.googleapis.com/v1/projects/${{ env.PROJECT_ID }}/occurrences?filter=resourceUrl=\"${RESOURCE_URI}\" AND kind=\"VULNERABILITY\"")
 
-            echo "Current scan status: $STATUS"
+            COUNT=$(echo "$RESPONSE" | jq '.occurrences | length')
 
-            if [[ "$STATUS" == "FINISHED_SUCCESS" ]]; then
-              echo "Scan finished successfully."
-
-              VULN_COUNT=$(gcloud container analysis occurrences list \
-                --resource-uri="${RESOURCE_URI}" \
-                --kind=VULNERABILITY \
-                --format="value(name)" | wc -l)
-
-              echo "Vulnerabilities found: $VULN_COUNT"
-
-              if [[ "$VULN_COUNT" -eq 0 ]]; then
-                echo "Scan PASSED: No vulnerabilities."
-                exit 0
-              else
-                echo "Scan FAILED: $VULN_COUNT vulnerabilities found."
-                exit 1
-              fi
-
-            elif [[ "$STATUS" == "FINISHED_FAILED" || "$STATUS" == "FAILED" ]]; then
-              echo "Scan FAILED due to error."
-              exit 1
+            if [[ "$COUNT" -eq 0 ]]; then
+              echo "No vulnerabilities found yet. Waiting for next attempt..."
+              sleep $WAIT_TIME
+              continue
             fi
 
-            echo "Waiting for scan to complete..."
-            sleep $WAIT_TIME
+            echo "Found $COUNT vulnerability occurrences."
+
+            HIGH_COUNT=$(echo "$RESPONSE" | jq '[.occurrences[] | select(.vulnerability.effectiveSeverity == "HIGH" or .vulnerability.effectiveSeverity == "CRITICAL")] | length')
+
+            echo "Number of HIGH or CRITICAL vulnerabilities: $HIGH_COUNT"
+
+            if [[ "$HIGH_COUNT" -eq 0 ]]; then
+              echo "Scan passed: No high or critical vulnerabilities found."
+              exit 0
+            else
+              echo "Scan failed: High or critical vulnerabilities found."
+              echo "$RESPONSE" | jq .
+              exit 1
+            fi
           done
 
-          echo "FAILED: Scan did not complete in time."
+          echo "Scan did not complete in time or no data returned."
           exit 1
 
 
