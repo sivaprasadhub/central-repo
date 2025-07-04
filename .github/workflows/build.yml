@@ -61,7 +61,9 @@ jobs:
           echo "Checking vulnerability scan for image: ${{ env.FULL_IMAGE }}"
 
           # Get image digest
-          DIGEST=$(gcloud artifacts docker images describe ${{ env.FULL_IMAGE }} --format='value(image_summary.digest)')
+          DIGEST=$(gcloud artifacts docker images describe ${{ env.FULL_IMAGE }} \
+            --format='value(image_summary.digest)')
+
           RESOURCE_URI="https://${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}@${DIGEST}"
 
           MAX_ATTEMPTS=20
@@ -71,7 +73,8 @@ jobs:
             echo "Attempt $i: Checking scan status..."
 
             STATUS=$(gcloud artifacts docker images describe ${{ env.FULL_IMAGE }} \
-              --format="value(image_summary.vulnerabilityScanStatus)")
+              --show-package-vulnerability \
+              --format="value(discovery_summary.discovery[0].discovery.analysisStatus)")
 
             echo "Current scan status: $STATUS"
 
@@ -86,12 +89,13 @@ jobs:
               echo "Vulnerabilities found: $VULN_COUNT"
 
               if [[ "$VULN_COUNT" -eq 0 ]]; then
-                echo "Scan PASSED"
+                echo "Scan PASSED: No vulnerabilities."
                 exit 0
               else
                 echo "Scan FAILED: $VULN_COUNT vulnerabilities found."
                 exit 1
               fi
+
             elif [[ "$STATUS" == "FINISHED_FAILED" || "$STATUS" == "FAILED" ]]; then
               echo "Scan FAILED due to error."
               exit 1
@@ -101,8 +105,9 @@ jobs:
             sleep $WAIT_TIME
           done
 
-          echo "Scan did not complete in time"
+          echo "FAILED: Scan did not complete in time."
           exit 1
+
 
 
 
