@@ -53,3 +53,33 @@ jobs:
       # Step 6: Push Docker image to Artifact Registry
       - name: Push Docker image
         run: docker push ${{ env.FULL_IMAGE }}
+
+
+            # Step 7: Poll Container Analysis API for vulnerability scan result
+      - name: Check vulnerability scan result
+        run: |
+          echo "Polling scan status for image: ${{ env.FULL_IMAGE }}"
+
+          for i in {1..10}; do
+            echo "Attempt $i: Checking scan status..."
+            STATUS=$(gcloud artifacts docker images describe ${{ env.FULL_IMAGE }} \
+              --location=${{ env.GAR_LOCATION }} \
+              --format='value(scanStatus)')
+
+            echo "Current scan status: $STATUS"
+
+            if [[ "$STATUS" == "FINISHED_SUCCESS" ]]; then
+              echo "Vulnerability scan passed"
+              exit 0
+            elif [[ "$STATUS" == "FINISHED_FAILED" || "$STATUS" == "FINISHED_UNSUPPORTED" ]]; then
+              echo "Vulnerability scan failed or unsupported"
+              exit 1
+            fi
+
+            echo "Waiting for scan to complete..."
+            sleep 15
+          done
+
+          echo "Scan did not complete in time"
+          exit 1
+   
