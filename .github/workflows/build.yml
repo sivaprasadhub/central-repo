@@ -37,5 +37,4 @@ jobs:
       # Step 5: Push image to Artifact Registry
       - name: Push Docker image
         run: |
-          docker push us-central1-docker.pkg.dev/sivaprasad-426906/cloud-run-source-deploy/app-image:latest      
-      
+          docker push us-central1-docker.pkg.dev/sivaprasad-426906/cloud-run-source-deploy/app-image:latest
