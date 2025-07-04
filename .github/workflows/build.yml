@@ -61,40 +61,49 @@ jobs:
           echo "Checking vulnerability scan for image: ${{ env.FULL_IMAGE }}"
 
           # Get image digest
-          DIGEST=$(gcloud artifacts docker images describe ${{ env.FULL_IMAGE }} \
-            --format='value(image_summary.digest)')
-
+          DIGEST=$(gcloud artifacts docker images describe ${{ env.FULL_IMAGE }} --format='value(image_summary.digest)')
           RESOURCE_URI="https://${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}@${DIGEST}"
 
           MAX_ATTEMPTS=20
           WAIT_TIME=30
 
           for i in $(seq 1 $MAX_ATTEMPTS); do
-            echo "Checking scan status... ($i/$MAX_ATTEMPTS)"
+            echo "Attempt $i: Checking scan status..."
 
-            VULN_COUNT=$(gcloud container analysis occurrences list \
-              --resource-uri="${RESOURCE_URI}" \
-              --kind=VULNERABILITY \
-              --format="value(name)" 2>/dev/null | wc -l)
+            STATUS=$(gcloud artifacts docker images describe ${{ env.FULL_IMAGE }} \
+              --format="value(image_summary.vulnerabilityScanStatus)")
 
-            if [[ "$VULN_COUNT" =~ ^[0-9]+$ ]]; then
+            echo "Current scan status: $STATUS"
+
+            if [[ "$STATUS" == "FINISHED_SUCCESS" ]]; then
+              echo "Scan finished successfully."
+
+              VULN_COUNT=$(gcloud container analysis occurrences list \
+                --resource-uri="${RESOURCE_URI}" \
+                --kind=VULNERABILITY \
+                --format="value(name)" | wc -l)
+
+              echo "Vulnerabilities found: $VULN_COUNT"
+
               if [[ "$VULN_COUNT" -eq 0 ]]; then
-                echo "Scan PASSED: No vulnerabilities found."
+                echo "Scan PASSED"
                 exit 0
               else
-                echo "Scan FAILED: Found $VULN_COUNT vulnerabilities."
+                echo "Scan FAILED: $VULN_COUNT vulnerabilities found."
                 exit 1
               fi
-            fi
-
-            if [[ $i -eq $MAX_ATTEMPTS ]]; then
-              echo "FAILED: Scan did not complete in time."
+            elif [[ "$STATUS" == "FINISHED_FAILED" || "$STATUS" == "FAILED" ]]; then
+              echo "Scan FAILED due to error."
               exit 1
             fi
 
             echo "Waiting for scan to complete..."
             sleep $WAIT_TIME
           done
+
+          echo "Scan did not complete in time"
+          exit 1
+
 
 
    
