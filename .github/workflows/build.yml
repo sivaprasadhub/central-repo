@@ -4,17 +4,23 @@ on:
   repository_dispatch:
     types: [build-image]
 
-# ✅ Required for GitHub OIDC authentication
 permissions:
   contents: read
-  id-token: write
+  id-token: write  # Required for GitHub OIDC → GCP auth
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      GAR_LOCATION: us-central1
+      PROJECT_ID: sivaprasad-426906
+      REPO_NAME: cloud-run-source-deploy
+      IMAGE_NAME: app-image
+      IMAGE_TAG: ${{ github.sha }}
+      FULL_IMAGE: us-central1-docker.pkg.dev/sivaprasad-426906/cloud-run-source-deploy/app-image:${{ github.sha }}
 
     steps:
-      # Step 1: Clone the app repo
+      # Step 1: Clone app repo
       - name: Clone app repo
         uses: actions/checkout@v3
         with:
@@ -24,31 +30,26 @@ jobs:
 
       # Step 2: Authenticate with GCP using Workload Identity Federation
       - id: auth
-        uses: google-github-actions/auth@v2.0.0
+        uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: 'projects/954176678706/locations/global/workloadIdentityPools/github-demo-pool/providers/github'
           service_account: 'github-action-wif@sivaprasad-426906.iam.gserviceaccount.com'
 
-      # Step 3: Install gcloud SDK
+      # Step 3: Setup gcloud SDK
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
-      # ✅ Debug: Verify that authentication is successful
-      - name: Check gcloud authentication status
-        run: gcloud auth list
-
-      # Step 4: Configure Docker to use Artifact Registry
-      - name: Configure Docker for Artifact Registry
+      # Step 4: Configure Docker for Artifact Registry
+      - name: Configure Docker
         run: |
-          gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+          gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev --quiet
 
       # Step 5: Build Docker image
       - name: Build Docker image
         run: |
           cd app-repo
-          docker build -t us-central1-docker.pkg.dev/sivaprasad-426906/cloud-run-source-deploy/app-image:${{ github.sha }} .
+          docker build -t ${{ env.FULL_IMAGE }} .
 
       # Step 6: Push Docker image to Artifact Registry
       - name: Push Docker image
-        run: |
-          docker push us-central1-docker.pkg.dev/sivaprasad-426906/cloud-run-source-deploy/app-image:${{ github.sha }}
+        run: docker push ${{ env.FULL_IMAGE }}
