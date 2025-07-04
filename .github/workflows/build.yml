@@ -60,11 +60,17 @@ jobs:
         run: |
           echo "Polling scan status for image: ${{ env.FULL_IMAGE }}"
 
+          DIGEST=$(gcloud artifacts docker images describe ${{ env.FULL_IMAGE }} \
+            --format='value(image_summary.digest)')
+
+          echo "Image digest: $DIGEST"
+
           for i in {1..10}; do
             echo "Attempt $i: Checking scan status..."
-            STATUS=$(gcloud artifacts docker images describe ${{ env.FULL_IMAGE }} \
-              --location=${{ env.GAR_LOCATION }} \
-              --format='value(scanStatus)')
+
+            STATUS=$(gcloud container images describe \
+              us-central1-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}@${DIGEST} \
+              --format='value(image_summary.scan_status)')
 
             echo "Current scan status: $STATUS"
 
@@ -82,4 +88,5 @@ jobs:
 
           echo "Scan did not complete in time"
           exit 1
+
    
