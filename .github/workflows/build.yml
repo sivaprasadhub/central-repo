@@ -56,40 +56,39 @@ jobs:
         run: docker push ${{ env.FULL_IMAGE }}
 
       # Step 7: Scan the pushed image via Container Analysis API
-      - name: Scan image via Container Analysis API
+      - name: Check vulnerability scan via Container Analysis API
         run: |
-          set -e
-
-          echo "Scanning image: $FULL_IMAGE"
-
-          # Obtain an access token
-          TOKEN=$(gcloud auth print-access-token)
-
-          # Retrieve the digest of the pushed image
-          DIGEST=$(gcloud artifacts docker images describe "$FULL_IMAGE" \
+          echo "Checking vulnerability scan for image: ${{ env.FULL_IMAGE }}"
+          # Get the image digest
+          DIGEST=$(gcloud artifacts docker images describe ${{ env.FULL_IMAGE }} \
             --format='value(image_summary.digest)')
-          if [ -z "$DIGEST" ]; then
-            echo "Error: Digest not found for $FULL_IMAGE"
-            exit 1
-          fi
+          RESOURCE_URI="https://${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}@${DIGEST}"
+          echo "Using RESOURCE_URI=$RESOURCE_URI"
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
+          MAX_ATTEMPTS=20
+          WAIT_TIME=30
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            echo "Attempt $i: Calling Container Analysis API..."
+            RESPONSE=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
+              "https://containeranalysis.googleapis.com/v1/projects/${{ env.PROJECT_ID }}/occurrences?filter=resourceUrl=\"${RESOURCE_URI}\" AND kind=\"VULNERABILITY\"")
+            COUNT=$(echo "$RESPONSE" | jq '.occurrences | length')
+            if [[ "$COUNT" -eq 0 ]]; then
+              echo "No vulnerabilities found yet. Waiting for next attempt..."
+              sleep $WAIT_TIME
+              continue
+            fi
+            echo "Found $COUNT vulnerability occurrences."
+            HIGH_COUNT=$(echo "$RESPONSE" | jq '[.occurrences[] | select(.vulnerability.effectiveSeverity == "HIGH" or .vulnerability.effectiveSeverity == "CRITICAL")] | length')
+            echo "Number of HIGH or CRITICAL vulnerabilities: $HIGH_COUNT"
+            if [[ "$HIGH_COUNT" -eq 0 ]]; then
+              echo "Scan passed: No high or critical vulnerabilities found."
+              exit 0
+            else
+              echo "Scan failed: High or critical vulnerabilities found."
+              echo "$RESPONSE" | jq .
+              exit 1
+            fi
+          done
+          echo "Scan did not complete in time or no data returned."
+          exit 1
 
-          # Construct the resource URL for Container Analysis
-          BASE_NO_TAG=${FULL_IMAGE%%:*}
-          RESOURCE_URL="https://${BASE_NO_TAG}@${DIGEST}"
-          echo "Resource URL: $RESOURCE_URL"
-
-          # Call the vulnerabilitySummary endpoint
-          API="https://containeranalysis.googleapis.com/v1/projects/${PROJECT_ID}/locations/${GAR_LOCATION}/occurrences:vulnerabilitySummary"
-          SUMMARY=$(curl -s -H "Authorization: Bearer $TOKEN" \
-            "${API}?filter=resourceUrl=\"${RESOURCE_URL}\"&returnPartialSuccess=true")
-
-          # Sum up all vulnerability counts
-          TOTAL=$(echo "$SUMMARY" | jq '(.counts // [] | map(.totalCount) | add)')
-
-          if [ "$TOTAL" -gt 0 ]; then
-            echo "VULNERABILITIES FOUND in $FULL_IMAGE: total=$TOTAL"
-            echo "$SUMMARY" | jq '.counts'
-            exit 1
-          else
-            echo "NO VULNERABILITIES in $FULL_IMAGE"
-          fi
