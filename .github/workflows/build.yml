@@ -58,27 +58,28 @@ jobs:
             # Step 7: Poll Container Analysis API for vulnerability scan result
       - name: Check vulnerability scan result
         run: |
-          echo "Polling scan status for image: ${{ env.FULL_IMAGE }}"
+          echo "Polling scan result for image: ${{ env.FULL_IMAGE }}"
 
           DIGEST=$(gcloud artifacts docker images describe ${{ env.FULL_IMAGE }} \
             --format='value(image_summary.digest)')
 
           echo "Image digest: $DIGEST"
 
+          RESOURCE_URI="https://${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}@${DIGEST}"
+
           for i in {1..10}; do
-            echo "Attempt $i: Checking scan status..."
+            echo "Attempt $i: Checking for scan results..."
 
-            STATUS=$(gcloud container images describe \
-              us-central1-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}@${DIGEST} \
-              --format='value(image_summary.scan_status)')
+            COUNT=$(gcloud container analysis occurrences list \
+              --resource-uri="${RESOURCE_URI}" \
+              --kind=VULNERABILITY \
+              --format="value(name)" | wc -l)
 
-            echo "Current scan status: $STATUS"
-
-            if [[ "$STATUS" == "FINISHED_SUCCESS" ]]; then
-              echo "Vulnerability scan passed"
+            if [[ "$COUNT" -eq 0 ]]; then
+              echo "No vulnerabilities found. Scan passed."
               exit 0
-            elif [[ "$STATUS" == "FINISHED_FAILED" || "$STATUS" == "FINISHED_UNSUPPORTED" ]]; then
-              echo "Vulnerability scan failed or unsupported"
+            elif [[ "$COUNT" -gt 0 ]]; then
+              echo "Scan completed with $COUNT vulnerabilities."
               exit 1
             fi
 
@@ -86,7 +87,8 @@ jobs:
             sleep 15
           done
 
-          echo "Scan did not complete in time"
+          echo "Scan did not complete in time. Exiting with failure."
           exit 1
+
 
    
