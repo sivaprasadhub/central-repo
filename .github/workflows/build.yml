@@ -4,11 +4,17 @@ on:
   repository_dispatch:
     types: [build-image]
 
+# ✅ This is REQUIRED for Workload Identity Federation to work
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Clone app repo
       - name: Clone app repo
         uses: actions/checkout@v3
         with:
@@ -16,26 +22,29 @@ jobs:
           token: ${{ secrets.APP_REPO_TOKEN }}
           path: app-repo
 
-
+      # Step 2: Authenticate with GCP via Workload Identity Federation
       - id: auth
         uses: google-github-actions/auth@v2.0.0
         with:
           workload_identity_provider: 'projects/954176678706/locations/global/workloadIdentityPools/github-demo-pool/providers/github'
           service_account: 'github-action-wif@sivaprasad-426906.iam.gserviceaccount.com'
 
-          
+      # Step 3: Set up gcloud CLI (required before configuring Docker)
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
 
+      # Step 4: Configure Docker for Artifact Registry
       - name: Configure Docker for Artifact Registry
         run: |
           gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
-      # Step 4: Build Docker image
+      # Step 5: Build Docker image
       - name: Build Docker image
         run: |
           cd app-repo
           docker build -t us-central1-docker.pkg.dev/sivaprasad-426906/cloud-run-source-deploy/app-image:latest .
 
-      # Step 5: Push image to Artifact Registry
+      # Step 6: Push image to Artifact Registry
       - name: Push Docker image
         run: |
           docker push us-central1-docker.pkg.dev/sivaprasad-426906/cloud-run-source-deploy/app-image:latest
