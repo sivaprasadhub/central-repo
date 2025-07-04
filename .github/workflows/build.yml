@@ -60,12 +60,11 @@ jobs:
         run: |
           echo "Checking vulnerability scan for image: ${{ env.FULL_IMAGE }}"
 
-          # Get the image digest
           DIGEST=$(gcloud artifacts docker images describe ${{ env.FULL_IMAGE }} \
             --format='value(image_summary.digest)')
 
           RESOURCE_URI="https://${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}@${DIGEST}"
-          echo "Using RESOURCE_URI=$RESOURCE_URI"
+          echo "Using RESOURCE_URI: $RESOURCE_URI"
 
           ACCESS_TOKEN=$(gcloud auth print-access-token)
 
@@ -73,7 +72,7 @@ jobs:
           WAIT_TIME=30
 
           for i in $(seq 1 $MAX_ATTEMPTS); do
-            echo "Attempt $i: Calling Container Analysis API..."
+            echo "Attempt $i: Polling Container Analysis API..."
 
             RESPONSE=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
               "https://containeranalysis.googleapis.com/v1/projects/${{ env.PROJECT_ID }}/occurrences?filter=resourceUrl=\"${RESOURCE_URI}\" AND kind=\"VULNERABILITY\"")
@@ -81,28 +80,29 @@ jobs:
             COUNT=$(echo "$RESPONSE" | jq '.occurrences | length')
 
             if [[ "$COUNT" -eq 0 ]]; then
-              echo "No vulnerabilities found yet. Waiting for next attempt..."
+              echo "No vulnerability occurrences yet. Waiting..."
               sleep $WAIT_TIME
               continue
             fi
 
-            echo "Found $COUNT vulnerability occurrences."
+            echo "Found $COUNT total vulnerability occurrences."
 
             HIGH_COUNT=$(echo "$RESPONSE" | jq '[.occurrences[] | select(.vulnerability.effectiveSeverity == "HIGH" or .vulnerability.effectiveSeverity == "CRITICAL")] | length')
 
-            echo "Number of HIGH or CRITICAL vulnerabilities: $HIGH_COUNT"
-
             if [[ "$HIGH_COUNT" -eq 0 ]]; then
-              echo "Scan passed: No high or critical vulnerabilities found."
+              echo "Scan PASSED: No HIGH or CRITICAL vulnerabilities found."
+              echo "Full vulnerability list:"
+              echo "$RESPONSE" | jq '[.occurrences[] | {severity: .vulnerability.effectiveSeverity, noteName: .noteName}]'
               exit 0
             else
-              echo "Scan failed: High or critical vulnerabilities found."
-              echo "$RESPONSE" | jq .
+              echo "Scan FAILED: $HIGH_COUNT HIGH or CRITICAL vulnerabilities found."
+              echo "Vulnerability summary:"
+              echo "$RESPONSE" | jq '[.occurrences[] | select(.vulnerability.effectiveSeverity == "HIGH" or .vulnerability.effectiveSeverity == "CRITICAL") | {severity: .vulnerability.effectiveSeverity, package: .vulnerability.packageIssue[0].affectedPackage, cve: .vulnerability.shortDescription}]'
               exit 1
             fi
           done
 
-          echo "Scan did not complete in time or no data returned."
+          echo "ERROR: Scan did not complete within timeout."
           exit 1
 
 
