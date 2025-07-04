@@ -18,11 +18,11 @@ jobs:
 
 
       - id: auth
-          uses: google-github-actions/auth@v2.0.0  
-          with:
-            workload_identity_provider: 'projects/954176678706/locations/global/workloadIdentityPools/github-demo-pool/providers/github'
-            service_account: 'github-action-wif@sivaprasad-426906.iam.gserviceaccount.com'
-            #service_account: ${{ secrets.SERVICE_ACCOUNT_ID }}
+        uses: google-github-actions/auth@v2.0.0
+        with:
+          workload_identity_provider: 'projects/954176678706/locations/global/workloadIdentityPools/github-demo-pool/providers/github'
+          service_account: 'github-action-wif@sivaprasad-426906.iam.gserviceaccount.com'
+
 
       - name: Configure Docker for Artifact Registry
         run: |
