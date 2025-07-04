@@ -60,6 +60,9 @@ jobs:
         run: |
           echo "Checking vulnerability scan for image: ${{ env.FULL_IMAGE }}"
 
+          # Enable Container Analysis API
+          gcloud services enable containeranalysis.googleapis.com
+
           # Get image digest
           DIGEST=$(gcloud artifacts docker images describe ${{ env.FULL_IMAGE }} \
             --format='value(image_summary.digest)')
@@ -73,18 +76,25 @@ jobs:
           for i in $(seq 1 $MAX_ATTEMPTS); do
             echo "Checking scan status... ($i/$MAX_ATTEMPTS)"
 
-            # Check if scan has completed
-            TOTAL_OCCURRENCES=$(gcloud container analysis occurrences list \
-              --resource-uri="${RESOURCE_URI}" \
-              --format="value(name)" | wc -l)
-
-            if [[ "$TOTAL_OCCURRENCES" -gt 0 ]]; then
-              # Get vulnerability count
-              VULN_COUNT=$(gcloud container analysis occurrences list \
+            # Try alpha command first, fallback to REST API
+            if command -v gcloud alpha >/dev/null 2>&1; then
+              VULN_COUNT=$(gcloud alpha container analysis occurrences list \
                 --resource-uri="${RESOURCE_URI}" \
                 --kind=VULNERABILITY \
-                --format="value(name)" | wc -l)
+                --format="value(name)" 2>/dev/null | wc -l)
+            else
+              # Use REST API as fallback
+              ACCESS_TOKEN=$(gcloud auth print-access-token)
+              ENCODED_URI=$(printf '%s' "$RESOURCE_URI" | jq -sRr @uri)
+              
+              RESPONSE=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
+                "https://containeranalysis.googleapis.com/v1/projects/${{ env.PROJECT_ID }}/occurrences?filter=resourceUri=\"$RESOURCE_URI\" AND kind=\"VULNERABILITY\"")
+              
+              VULN_COUNT=$(echo "$RESPONSE" | jq '.occurrences | length' 2>/dev/null || echo "0")
+            fi
 
+            # Check if we got a valid response
+            if [[ "$VULN_COUNT" =~ ^[0-9]+$ ]]; then
               if [[ "$VULN_COUNT" -eq 0 ]]; then
                 echo "PASSED"
                 exit 0
@@ -92,15 +102,14 @@ jobs:
                 echo "FAILED"
                 exit 1
               fi
-              
-            else
-              if [[ $i -eq $MAX_ATTEMPTS ]]; then
-                echo "FAILED"
-                exit 1
-              fi
-              
-              sleep $WAIT_TIME
             fi
+              
+            if [[ $i -eq $MAX_ATTEMPTS ]]; then
+              echo "FAILED"
+              exit 1
+            fi
+              
+            sleep $WAIT_TIME
           done
 
 
