@@ -49,6 +49,7 @@ jobs:
           git checkout "${{ github.event.client_payload.sha }}"
           echo "REPO_NAME=$REPO_NAME" >> "$GITHUB_OUTPUT"
 
+
       # Resolve base commit (empty tree on first run)
       - id: base
         name: Resolve base commit
