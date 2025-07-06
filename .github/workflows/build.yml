@@ -44,7 +44,7 @@ jobs:
         run: |
           REPO_FULL="${{ github.event.client_payload.repository }}"
           REPO_NAME="${REPO_FULL#*/}"
-          git clone https://x-access-token:${{ secrets.CI_PAT }}@github.com/$REPO_FULL "$REPO_NAME"
+          git clone https://x-access-token:${{ secrets.BUILDER_REPO_TOKEN }}@github.com/$REPO_FULL "$REPO_NAME"
           cd "$REPO_NAME"
           git checkout "${{ github.event.client_payload.sha }}"
           echo "REPO_NAME=$REPO_NAME" >> "$GITHUB_OUTPUT"
