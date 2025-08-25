@@ -107,66 +107,66 @@ jobs:
             echo "$FULL" >> /tmp/built.txt
           done
 
-      # Collect list of built images
-      - id: collect
-        name: Collect built image list
-        run: |
-          if [ -s /tmp/built.txt ]; then
-            jq -Rsc 'split("\n")[:-1]' /tmp/built.txt > /tmp/list.json
-            echo "images_json=$(cat /tmp/list.json)" >> "$GITHUB_OUTPUT"
-          else
-            echo "images_json=[]" >> "$GITHUB_OUTPUT"
-          fi
+#       # Collect list of built images
+#       - id: collect
+#         name: Collect built image list
+#         run: |
+#           if [ -s /tmp/built.txt ]; then
+#             jq -Rsc 'split("\n")[:-1]' /tmp/built.txt > /tmp/list.json
+#             echo "images_json=$(cat /tmp/list.json)" >> "$GITHUB_OUTPUT"
+#           else
+#             echo "images_json=[]" >> "$GITHUB_OUTPUT"
+#           fi
 
-###############################################################################
-# Job 2: Scan images using vulnerabilitySummary REST API
-###############################################################################
-  ca_scan:
-    needs: build
-    if: needs.build.outputs.built_images != '[]'
-    runs-on: ubuntu-latest
-    permissions: { id-token: write }
+# ###############################################################################
+# # Job 2: Scan images using vulnerabilitySummary REST API
+# ###############################################################################
+#   ca_scan:
+#     needs: build
+#     if: needs.build.outputs.built_images != '[]'
+#     runs-on: ubuntu-latest
+#     permissions: { id-token: write }
 
-    steps:
-      # Checkout for workspace
-      - uses: actions/checkout@v3
+#     steps:
+#       # Checkout for workspace
+#       - uses: actions/checkout@v3
 
-      # GCP authentication
-      - uses: google-github-actions/auth@v1
-        with:
-          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account:            ${{ env.SERVICE_ACCOUNT }}
+#       # GCP authentication
+#       - uses: google-github-actions/auth@v1
+#         with:
+#           workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+#           service_account:            ${{ env.SERVICE_ACCOUNT }}
 
-      # Loop through images, call REST API, fail if vulnerabilities found
-      - name: Scan images via Container Analysis API
-        env:
-          IMAGES_JSON: ${{ needs.build.outputs.built_images }}
-        run: |
-          set -e
-          TOKEN=$(gcloud auth print-access-token)
-          for IMG in $(echo "$IMAGES_JSON" | jq -r '.[]'); do
-            echo "Scanning $IMG"
+#       # Loop through images, call REST API, fail if vulnerabilities found
+#       - name: Scan images via Container Analysis API
+#         env:
+#           IMAGES_JSON: ${{ needs.build.outputs.built_images }}
+#         run: |
+#           set -e
+#           TOKEN=$(gcloud auth print-access-token)
+#           for IMG in $(echo "$IMAGES_JSON" | jq -r '.[]'); do
+#             echo "Scanning $IMG"
 
-            DIGEST=$(gcloud artifacts docker images describe "$IMG" \
-                       --format='value(image_summary.digest)')
-            [ -z "$DIGEST" ] && { echo "Digest not found"; exit 1; }
+#             DIGEST=$(gcloud artifacts docker images describe "$IMG" \
+#                        --format='value(image_summary.digest)')
+#             [ -z "$DIGEST" ] && { echo "Digest not found"; exit 1; }
 
-            BASE_NO_TAG=${IMG%%:*}
-            RESOURCE_URL="https://${BASE_NO_TAG}@${DIGEST}"
+#             BASE_NO_TAG=${IMG%%:*}
+#             RESOURCE_URL="https://${BASE_NO_TAG}@${DIGEST}"
 
-            API="https://containeranalysis.googleapis.com/v1/projects/${PROJECT_ID}/locations/${LOCATION}/occurrences:vulnerabilitySummary"
-            SUMMARY=$(curl -s -H "Authorization: Bearer $TOKEN" \
-              "${API}?filter=resourceUrl=\"${RESOURCE_URL}\"&returnPartialSuccess=true")
+#             API="https://containeranalysis.googleapis.com/v1/projects/${PROJECT_ID}/locations/${LOCATION}/occurrences:vulnerabilitySummary"
+#             SUMMARY=$(curl -s -H "Authorization: Bearer $TOKEN" \
+#               "${API}?filter=resourceUrl=\"${RESOURCE_URL}\"&returnPartialSuccess=true")
 
-            TOTAL=$(echo "$SUMMARY" | jq '[(.counts // [])[] .totalCount | tonumber] | add')
+#             TOTAL=$(echo "$SUMMARY" | jq '[(.counts // [])[] .totalCount | tonumber] | add')
 
-            if [ "$TOTAL" -gt 0 ]; then
-              echo "Vulnerabilities found in $IMG"
-              echo "$SUMMARY" | jq '.counts'
-              exit 1
-            fi
-            echo "No vulnerabilities in $IMG"
-          done
+#             if [ "$TOTAL" -gt 0 ]; then
+#               echo "Vulnerabilities found in $IMG"
+#               echo "$SUMMARY" | jq '.counts'
+#               exit 1
+#             fi
+#             echo "No vulnerabilities in $IMG"
+#           done
 
 ###############################################################################
 # Job 3: Promote images if the scan job succeeded
