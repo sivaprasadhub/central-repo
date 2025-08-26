@@ -176,12 +176,18 @@ jobs:
           echo "Sending email to $TO_EMAIL from $FROM_EMAIL with subject: $SUBJECT"
 
           # Send email using curl to SendGrid API
-          CURL_RESPONSE=$(curl -s -X POST \
-            https://api.sendgrid.com/v3/mail/send \
-            -H "Authorization: Bearer $SENDGRID_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "$JSON_PAYLOAD" \
-            -w "\nHTTP_STATUS:%{http_code}")
+          
+
+          for EMAIL in $(echo $TO_EMAIL | tr "," "\n")
+          do
+            CURL_RESPONSE=curl -s -X POST \
+              https://api.sendgrid.com/v3/mail/send \
+              -H "Authorization: Bearer $SENDGRID_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "$JSON_PAYLOAD"\
+              -w "\nHTTP_STATUS:%{http_code}")
+          done
+  
 
           # Extract HTTP status and response body
           HTTP_STATUS=$(echo "$CURL_RESPONSE" | sed -n 's/.*HTTP_STATUS:\([0-9]*\)/\1/p')
