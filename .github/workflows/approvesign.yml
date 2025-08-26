@@ -5,7 +5,7 @@ on:
     inputs:
       image_uri:
         description: 'Image URI to approve and sign'
-        required: true
+        # required: true
 
 jobs:
   test:
