@@ -120,6 +120,8 @@ jobs:
 From: mailtosiva369@gmail.com
 To: sivaprasad3697@gmail.com
 Subject: Approval Required: Docker Image Built
+...
+EOF
 
 A Docker image has been built and pushed to the quarantine registry.
 
