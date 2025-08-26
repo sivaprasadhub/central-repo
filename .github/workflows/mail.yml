@@ -1,29 +1,32 @@
+# Workflow name
 name: Send Email Notification
 
+# Triggers for the workflow
 on:
-  workflow_dispatch: # Allows manual triggering
+  workflow_dispatch: # Manual trigger
   push:
     branches:
-      - main # Trigger on push to main
+      - main # On push to main branch
 
+# Define jobs
 jobs:
   send_email:
-    runs-on: ubuntu-latest
-    # Removed: fail-fast: false # This is not a valid top-level job property
+    runs-on: ubuntu-latest # Runner environment
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # Get repository code
 
-      - name: Install jq (for JSON parsing, optional)
-        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq # Install JSON processor
 
       - name: Send email via SendGrid API
         env:
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
-          TO_EMAIL: sivaprasad3697@gmail.com # Replace with actual recipient
-          FROM_EMAIL: mailtosiva369@gmail.com # Replace with your verified sender email
-          SUBJECT: GitHub Actions Workflow Notification
-          BODY_TEXT: |
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }} # Your SendGrid API key
+          TO_EMAIL: sivaprasad3697@gmail.com # Recipient email
+          FROM_EMAIL: mailtosiva369@gmail.com # Verified sender email
+          SUBJECT: GitHub Actions Workflow Notification # Email subject
+          BODY_TEXT: | # Email body content
             Hello,
 
             Your GitHub Actions workflow has completed successfully!
@@ -34,9 +37,8 @@ jobs:
 
             Best regards,
             GitHub Actions Bot
-        # continue-on-error: true # Uncomment this line if you want the workflow to continue even if email sending fails
         run: |
-          # Construct the JSON payload
+          # Construct JSON payload for SendGrid API
           JSON_PAYLOAD=$(jq -n \
             --arg to_email "$TO_EMAIL" \
             --arg from_email "$FROM_EMAIL" \
@@ -65,28 +67,26 @@ jobs:
             }')
 
           echo "Sending email to $TO_EMAIL from $FROM_EMAIL with subject: $SUBJECT"
-          echo "Payload: $JSON_PAYLOAD" # For debugging, remove in production if sensitive
 
-          # Using curl to send email via SendGrid's Mail Send API
-          # https://docs.sendgrid.com/api-reference/mail-send/mail-send
+          # Send email using curl to SendGrid API
           CURL_RESPONSE=$(curl -s -X POST \
             https://api.sendgrid.com/v3/mail/send \
             -H "Authorization: Bearer $SENDGRID_API_KEY" \
             -H "Content-Type: application/json" \
             -d "$JSON_PAYLOAD" \
-            -w "\nHTTP_STATUS:%{http_code}") # Capture HTTP status code
+            -w "\nHTTP_STATUS:%{http_code}")
 
+          # Extract HTTP status and response body
           HTTP_STATUS=$(echo "$CURL_RESPONSE" | sed -n 's/.*HTTP_STATUS:\([0-9]*\)/\1/p')
           RESPONSE_BODY=$(echo "$CURL_RESPONSE" | sed 's/HTTP_STATUS:[0-9]*//')
 
           echo "SendGrid API Response (HTTP Status: $HTTP_STATUS):"
           echo "$RESPONSE_BODY"
 
+          # Check for successful HTTP status (2xx)
           if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
             echo "Email sent successfully! HTTP Status: $HTTP_STATUS"
           else
             echo "Error sending email. HTTP Status: $HTTP_STATUS"
-            # You can parse the error message from RESPONSE_BODY here if needed
-            # For example: echo "$RESPONSE_BODY" | jq '.errors[0].message'
-            exit 1 # Fail the step if email sending was not successful
-          fi 
+            exit 1 # Fail the step on error
+          fi
