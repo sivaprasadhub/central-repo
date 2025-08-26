@@ -1,5 +1,5 @@
 # Workflow name
-name: Send Email Notification
+# name: Send Email Notification
 
 # Triggers for the workflow
 # on:
