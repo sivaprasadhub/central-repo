@@ -115,81 +115,77 @@ jobs:
 ###############################################################################
 # Job 2: Notifying through Mail
 ###############################################################################
-send_email:
-  needs: build
-  runs-on: ubuntu-latest
+  send_email:
+    needs: build
+    runs-on: ubuntu-latest # Runner environment
 
-  steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4 # Get repository code
 
-    - name: Install jq
-      run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq # Install JSON processor
 
-    - name: Send email via SendGrid API
-      env:
-        SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
-        TO_EMAIL: mailtosiva369@gmail.com
-        FROM_EMAIL: mailtosiva369@gmail.com
-        SUBJECT: GitHub Actions Workflow Notification
-        BODY_TEXT: |
-          Hello,
-          The following Docker images have been built and are awaiting your approval:
-          ${{ steps.collect.outputs.images_json }}
-
-          To approve and sign the image, please visit:
-          https://github.com/${{ github.repository }}/actions/workflows/approvesign.yml
-          Click "Run Workflow" and enter the image URI.
-
-          Best regards,
-          GitHub Actions Bot
-      run: |
-        # Construct JSON payload for the SendGrid API
-        JSON_PAYLOAD=$(jq -n \
-          --arg to_email "$TO_EMAIL" \
-          --arg from_email "$FROM_EMAIL" \
-          --arg subject "$SUBJECT" \
-          --arg body_text "$BODY_TEXT" \
-          '{
-            personalizations: [
-              {
-                to: [ {"email": $to_email} ]
-              }
-            ],
-            from: { "email": $from_email },
-            subject: $subject,
-            content: [
-              {
-                type: "text/plain",
-                value: $body_text
-              }
-            ]
-          }'
-        )
-
-        echo "Sending email to: $TO_EMAIL"
-
-        # Loop through each recipient in the comma-separated list
-        for EMAIL in $(echo "$TO_EMAIL" | tr "," "\n"); do
-          echo "Sending to: $EMAIL"
-          CURL_RESPONSE=$(curl -s \
-            -X POST https://api.sendgrid.com/v3/mail/send \
+      - name: Send email via SendGrid API
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }} # Your SendGrid API key
+          TO_EMAIL: 'mailtosiva369@gmail.com,sivaprasad3697@gmail.com' # Recipient email
+          FROM_EMAIL: mailtosiva369@gmail.com # Verified sender email
+          SUBJECT: GitHub Actions Workflow Notification # Email subject
+          BODY_TEXT: | # Email body content
+            Hello,
+            The following Docker images have been built and are awaiting your approval:${{ steps.collect.outputs.images_json }}
+            
+            To approve and sign the image, please visit:
+            https://github.com/${{ github.repository }}/actions/workflows/approvesign.yml
+            Click "Run Workflow" and enter the image URI.
+            Best regards,
+            GitHub Actions Bot
+        run: |
+          # Construct JSON payload for SendGrid API
+          JSON_PAYLOAD=$(jq -n \
+            --arg to_email "$TO_EMAIL" \
+            --arg from_email "$FROM_EMAIL" \
+            --arg subject "$SUBJECT" \
+            --arg body_text "$BODY_TEXT" \
+            '{
+              personalizations: [
+                {
+                  to: [
+                    {
+                      email: $to_email
+                    }
+                  ]
+                }
+              ],
+              from: {
+                email: $from_email
+              },
+              subject: $subject,
+              content: [
+                {
+                  type: "text/plain",
+                  value: $body_text
+                }
+              ]
+            }')
+          echo "Sending email to $TO_EMAIL from $FROM_EMAIL with subject: $SUBJECT"
+          # Send email using curl to SendGrid API
+          CURL_RESPONSE=$(curl -s -X POST \
+            https://api.sendgrid.com/v3/mail/send \
             -H "Authorization: Bearer $SENDGRID_API_KEY" \
             -H "Content-Type: application/json" \
             -d "$JSON_PAYLOAD" \
-            -w "\nHTTP_STATUS:%{http_code}"
-          )
-
+            -w "\nHTTP_STATUS:%{http_code}")
+          # Extract HTTP status and response body
           HTTP_STATUS=$(echo "$CURL_RESPONSE" | sed -n 's/.*HTTP_STATUS:\([0-9]*\)/\1/p')
           RESPONSE_BODY=$(echo "$CURL_RESPONSE" | sed 's/HTTP_STATUS:[0-9]*//')
-
-          echo "SendGrid API Response for $EMAIL (HTTP Status: $HTTP_STATUS):"
+          echo "SendGrid API Response (HTTP Status: $HTTP_STATUS):"
           echo "$RESPONSE_BODY"
-
+          # Check for successful HTTP status (2xx)
           if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
-            echo "Email sent successfully to $EMAIL!"
+            echo "Email sent successfully! HTTP Status: $HTTP_STATUS"
           else
-            echo "Failed to send email to $EMAIL. HTTP Status: $HTTP_STATUS"
-            exit 1
-          fi
-        done
+            echo "Error sending email. HTTP Status: $HTTP_STATUS"
+            exit 1 # Fail the step on error
+          fi          
