@@ -129,7 +129,7 @@ send_email:
     - name: Send email via SendGrid API
       env:
         SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
-        TO_EMAIL: 'mailtosiva369@gmail.com,sivaprasad3697@gmail.com'
+        TO_EMAIL: mailtosiva369@gmail.com
         FROM_EMAIL: mailtosiva369@gmail.com
         SUBJECT: GitHub Actions Workflow Notification
         BODY_TEXT: |
