@@ -129,12 +129,14 @@ jobs:
       - name: Send email via SendGrid API
         env:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }} # Your SendGrid API key
-          TO_EMAIL: mailtosiva369@gmail.com # Recipient email
+          # --- MODIFIED: Define multiple recipients as a comma-separated string ---
+          TO_EMAILS: "mailtosiva369@gmail.com,sivaprasad3697@gmail.com"
           FROM_EMAIL: mailtosiva369@gmail.com # Verified sender email
           SUBJECT: GitHub Actions Workflow Notification # Email subject
           BODY_TEXT: | # Email body content
             Hello,
-            The following Docker images have been built and are awaiting your approval:${{ steps.collect.outputs.images_json }}
+            The following Docker images have been built and are awaiting your approval:
+            ${{ needs.build.outputs.built_images }}
             
             To approve and sign the image, please visit:
             https://github.com/${{ github.repository }}/actions/workflows/approvesign.yml
@@ -142,20 +144,20 @@ jobs:
             Best regards,
             GitHub Actions Bot
         run: |
-          # Construct JSON payload for SendGrid API
+          # --- MODIFIED: Construct JSON payload for SendGrid API with multiple recipients ---
+          # Split the comma-separated TO_EMAILS string into a JSON array of objects
+          # Example: "email1@example.com,email2@example.com" -> [{"email":"email1@example.com"},{"email":"email2@example.com"}]
+          TO_RECIPIENTS_JSON=$(echo "$TO_EMAILS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk '{printf "{\"email\":\"%s\"},", $0}' | sed 's/,$//' | awk '{print "[" $0 "]"}' )
+
           JSON_PAYLOAD=$(jq -n \
-            --arg to_email "$TO_EMAIL" \
+            --argjson to_recipients "$TO_RECIPIENTS_JSON" \
             --arg from_email "$FROM_EMAIL" \
             --arg subject "$SUBJECT" \
             --arg body_text "$BODY_TEXT" \
             '{
               personalizations: [
                 {
-                  to: [
-                    {
-                      email: $to_email
-                    }
-                  ]
+                  to: $to_recipients
                 }
               ],
               from: {
@@ -169,7 +171,8 @@ jobs:
                 }
               ]
             }')
-          echo "Sending email to $TO_EMAIL from $FROM_EMAIL with subject: $SUBJECT"
+
+          echo "Sending email to $TO_EMAILS from $FROM_EMAIL with subject: $SUBJECT"
           # Send email using curl to SendGrid API
           CURL_RESPONSE=$(curl -s -X POST \
             https://api.sendgrid.com/v3/mail/send \
@@ -188,4 +191,4 @@ jobs:
           else
             echo "Error sending email. HTTP Status: $HTTP_STATUS"
             exit 1 # Fail the step on error
-          fi          
+          fi
