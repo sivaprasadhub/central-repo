@@ -1,0 +1,76 @@
+name: Send Email Notification
+
+on:
+  workflow_dispatch: # Allows manual triggering
+  push:
+    branches:
+      - main # Trigger on push to main
+
+jobs:
+  send_email:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Send email via SendGrid API
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          TO_EMAIL: sivaprasad3697@gmail.com # Replace with actual recipient
+          FROM_EMAIL: mailtosiva369@gmail.com # Replace with your verified sender email
+          SUBJECT: GitHub Actions Workflow Notification
+          BODY_TEXT: |
+            Hello,
+
+            Your GitHub Actions workflow has completed successfully!
+            Repository: ${{ github.repository }}
+            Workflow: ${{ github.workflow }}
+            Run ID: ${{ github.run_id }}
+            Commit: ${{ github.sha }}
+
+            Best regards,
+            GitHub Actions Bot
+        run: |
+          # Using curl to send email via SendGrid's Mail Send API
+          # https://docs.sendgrid.com/api-reference/mail-send/mail-send
+          curl -X POST \
+            https://api.sendgrid.com/v3/mail/send \
+            -H "Authorization: Bearer $SENDGRID_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "personalizations": [
+                {
+                  "to": [
+                    {
+                      "email": "'"$TO_EMAIL"'"
+                    }
+                  ]
+                }
+              ],
+              "from": {
+                "email": "'"$FROM_EMAIL"'"
+              },
+              "subject": "'"$SUBJECT"'",
+              "content": [
+                {
+                  "type": "text/plain",
+                  "value": "'"$BODY_TEXT"'"
+                }
+              ]
+            }'
+          echo "Email sent successfully!"
+
+      - name: Send email via SendGrid Action (Alternative)
+        # This is often cleaner if a good action exists
+        # You might need to install it from the marketplace or find its repo
+        # Example: https://github.com/sendgrid/sendgrid-action
+        # Note: This specific action might be outdated or require specific setup.
+        # Always check the action's documentation.
+        if: false # Set to true to enable this step and disable the curl one
+        uses: sendgrid/sendgrid-action@v1.0.0 # Check for the latest version
+        with:
+          api_key: ${{ secrets.SENDGRID_API_KEY }}
+          to: ${{ env.TO_EMAIL }}
+          from: ${{ env.FROM_EMAIL }}
+          subject: ${{ env.SUBJECT }}
+          content: ${{ env.BODY_TEXT }}
