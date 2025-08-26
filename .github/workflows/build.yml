@@ -115,7 +115,7 @@ jobs:
 
       - name: Send approval email via SendGrid
         if: steps.collect.outputs.images_json != '[]'
-        uses: mmeisels/actions-email@v1.1
+        uses: burnett01/sendgrid-action@v1
         with:
           sendgrid-token: ${{ secrets.SENDGRID_API_KEY }}
           from: 'mailtosiva369@gmail.com'
