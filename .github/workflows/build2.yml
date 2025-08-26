@@ -134,7 +134,7 @@ jobs:
           SUBJECT: GitHub Actions Workflow Notification # Email subject
           BODY_TEXT: | # Email body content
             Hello,
-            The following Docker images have been built and are awaiting your approval:${{ env.IMAGES }}
+            The following Docker images have been built and are awaiting your approval:${{ steps.collect.outputs.images_json }}
 
             
 
