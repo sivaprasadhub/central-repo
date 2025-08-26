@@ -115,7 +115,7 @@ jobs:
 
       - name: Send approval email
         if: steps.collect.outputs.images_json != '[]'
-        uses: mbergmann/sendgrid-action@v1
+        uses: peter-evans/sendgrid-action@v1
         with:
           api_key: ${{ secrets.SENDGRID_API_KEY }}
           from: 'mailtosiva369@gmail.com'
@@ -129,7 +129,7 @@ jobs:
 
             To approve and sign the image, please visit:
 
-            https://github.com/${{ github.repository }}/actions/workflows/approve-and-sign.yml
+            #https://github.com/${{ github.repository }}/actions/workflows/approve-and-sign.yml
             https://github.com/sivaprasadhub/central-repo/actions/workflows/approvesign.yml
             
             Click “Run Workflow” and enter the image URI.
