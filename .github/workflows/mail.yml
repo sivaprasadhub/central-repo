@@ -89,4 +89,4 @@ jobs:
             # You can parse the error message from RESPONSE_BODY here if needed
             # For example: echo "$RESPONSE_BODY" | jq '.errors[0].message'
             exit 1 # Fail the step if email sending was not successful
-          fi
+          fi 
