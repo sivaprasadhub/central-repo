@@ -95,21 +95,21 @@ jobs:
       - name: Generate email.txt file
         if: steps.collect.outputs.images_json != '[]'
         run: |
-         cat <<EOF > email.txt
-         From: mailtosiva369@gmail.com
-         To: sivaprasad3697@gmail.com
-         Subject: Approval Required: Docker Image Built
+          cat <<EOF > email.txt
+          From: mailtosiva369@gmail.com
+          To: sivaprasad3697@gmail.com
+          Subject: Approval Required: Docker Image Built
 
-         A Docker image has been built and pushed to the quarantine registry.
+          A Docker image has been built and pushed to the quarantine registry.
 
-        Image URI: ${{ steps.collect.outputs.first_image }}
+          Image URI: ${{ steps.collect.outputs.first_image }}
 
-         To approve and sign the image, please visit:
-         https://github.com/${{ github.repository }}/actions/workflows/approve-and-sign.yml
-         Click "Run Workflow" and enter the image URI.
+          To approve and sign the image, please visit:
+          https://github.com/${{ github.repository }}/actions/workflows/approve-and-sign.yml
+          Click "Run Workflow" and enter the image URI.
 
-         Thank you.
-         EOF
+          Thank you.
+          EOF
 
       - name: Set execute permission for sendgrid.js
         run: chmod +x .github/sendgrid.js
