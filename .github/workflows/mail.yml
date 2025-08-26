@@ -9,7 +9,7 @@ on:
 jobs:
   send_email:
     runs-on: ubuntu-latest
-    fail-fast: false # Set to false if you want other steps in this job to run even if one fails
+    # Removed: fail-fast: false # This is not a valid top-level job property
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
