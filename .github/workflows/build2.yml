@@ -1,11 +1,11 @@
 ###############################################################################
 # Workflow: Build ➜ Container‑Analysis Scan ➜ Promote
 ###############################################################################
-name: Build ➜ Scan ➜ Promote
+name: Build ➜ Notify
 
-# on:
-#   repository_dispatch:
-#     types: [app-code-change]
+on:
+  repository_dispatch:
+    types: [app-code-change]
 
 ###############################################################################
 # Global environment variables
@@ -113,101 +113,90 @@ jobs:
             echo "images_json=[]" >> "$GITHUB_OUTPUT"
           fi
 ###############################################################################
-# Job 2: Scan images using vulnerabilitySummary REST API
+# Job 2: Notifying through Mail
 ###############################################################################
-  ca_scan:
-    needs: build
-    if: needs.build.outputs.built_images != '[]'
-    runs-on: ubuntu-latest
-    permissions: { id-token: write }
+jobs:
+  send_email:
+    runs-on: ubuntu-latest # Runner environment
 
     steps:
-      # Checkout for workspace
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4 # Get repository code
 
-      # GCP authentication
-      - uses: google-github-actions/auth@v1
-        with:
-          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account:            ${{ env.SERVICE_ACCOUNT }}
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq # Install JSON processor
 
-      # Loop through images, call REST API, fail if vulnerabilities found
-      - name: Scan images via Container Analysis API
+      - name: Send email via SendGrid API
         env:
-          IMAGES_JSON: ${{ needs.build.outputs.built_images }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }} # Your SendGrid API key
+          TO_EMAIL: mailtosiva369@gmail.com # Recipient email
+          FROM_EMAIL: mailtosiva369@gmail.com # Verified sender email
+          SUBJECT: GitHub Actions Workflow Notification # Email subject
+          BODY_TEXT: | # Email body content
+            Hello,
+
+            Your GitHub Actions workflow has completed successfully!
+            Repository: ${{ github.repository }}
+            Workflow: ${{ github.workflow }}
+            Run ID: ${{ github.run_id }}
+            Commit: ${{ github.sha }}
+
+            To approve and sign the image, please visit:
+            https://github.com/${{ github.repository }}/actions/workflows/approvesign.yml
+            Click "Run Workflow" and enter the image URI.
+
+            Best regards,
+            GitHub Actions Bot
         run: |
-          set -e
-          TOKEN=$(gcloud auth print-access-token)
-          for IMG in $(echo "$IMAGES_JSON" | jq -r '.[]'); do
-            echo "Scanning $IMG"
-            DIGEST=$(gcloud artifacts docker images describe "$IMG" \
-                       --format='value(image_summary.digest)')
-            [ -z "$DIGEST" ] && { echo "Digest not found"; exit 1; }
-            BASE_NO_TAG=${IMG%%:*}
-            RESOURCE_URL="https://${BASE_NO_TAG}@${DIGEST}"
-            API="https://containeranalysis.googleapis.com/v1/projects/${PROJECT_ID}/locations/${LOCATION}/occurrences:vulnerabilitySummary"
-            SUMMARY=$(curl -s -H "Authorization: Bearer $TOKEN" \
-              "${API}?filter=resourceUrl=\"${RESOURCE_URL}\"&returnPartialSuccess=true")
-            TOTAL=$(echo "$SUMMARY" | jq '[(.counts // [])[] .totalCount | tonumber] | add')
-            if [ "$TOTAL" -gt 0 ]; then
-              echo "Vulnerabilities found in $IMG"
-              echo "$SUMMARY" | jq '.counts'
-              exit 1
-            fi
-            echo "No vulnerabilities in $IMG"
-          done
-###############################################################################
-# Job 3: Promote images if the scan job succeeded
-###############################################################################
-  # promote_secure:
-  #   needs: [build, ca_scan]
-  #   if: needs.ca_scan.result == 'success'
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     id-token: write
-  #     packages: write
-  #   strategy:
-  #     matrix:
-  #       image: ${{ fromJson(needs.build.outputs.built_images) }}
+          # Construct JSON payload for SendGrid API
+          JSON_PAYLOAD=$(jq -n \
+            --arg to_email "$TO_EMAIL" \
+            --arg from_email "$FROM_EMAIL" \
+            --arg subject "$SUBJECT" \
+            --arg body_text "$BODY_TEXT" \
+            '{
+              personalizations: [
+                {
+                  to: [
+                    {
+                      email: $to_email
+                    }
+                  ]
+                }
+              ],
+              from: {
+                email: $from_email
+              },
+              subject: $subject,
+              content: [
+                {
+                  type: "text/plain",
+                  value: $body_text
+                }
+              ]
+            }')
 
-  #   steps:
-  #     # Checkout for GHCR context
-  #     - uses: actions/checkout@v3
+          echo "Sending email to $TO_EMAIL from $FROM_EMAIL with subject: $SUBJECT"
 
-  #     # GCP authentication
-  #     - uses: google-github-actions/auth@v1
-  #       with:
-  #         workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
-  #         service_account:            ${{ env.SERVICE_ACCOUNT }}
+          # Send email using curl to SendGrid API
+          CURL_RESPONSE=$(curl -s -X POST \
+            https://api.sendgrid.com/v3/mail/send \
+            -H "Authorization: Bearer $SENDGRID_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$JSON_PAYLOAD" \
+            -w "\nHTTP_STATUS:%{http_code}")
 
-  #     # Install Cloud SDK and configure docker
-  #     - uses: google-github-actions/setup-gcloud@v1
+          # Extract HTTP status and response body
+          HTTP_STATUS=$(echo "$CURL_RESPONSE" | sed -n 's/.*HTTP_STATUS:\([0-9]*\)/\1/p')
+          RESPONSE_BODY=$(echo "$CURL_RESPONSE" | sed 's/HTTP_STATUS:[0-9]*//')
 
-  #     - name: Docker login to secure registry
-  #       run: gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev
+          echo "SendGrid API Response (HTTP Status: $HTTP_STATUS):"
+          echo "$RESPONSE_BODY"
 
-  #     # Copy digest to secure repo and tag secure-<sha>
-  #     - id: promote
-  #       name: Promote image to secure registry
-  #       env:
-  #         QUAR:   ${{ env.QUAR_IMAGE_REGISTRY }}
-  #         SECURE: ${{ env.SECURE_IMAGE_REGISTRY }}
-  #       run: |
-  #         SRC="${{ matrix.image }}"
-  #         DST=$(echo "$SRC" | sed "s|$QUAR|$SECURE|" | sed "s/:insecure-/:secure-/")
-  #         docker pull "$SRC"
-  #         docker tag  "$SRC" "$DST"
-  #         docker push "$DST"
-  #         echo "dst=$DST" >> "$GITHUB_OUTPUT"
-
-  #     # Push same digest/tag to GHCR
-  #     - name: Push tag to GHCR
-  #       env:
-  #         COMMIT_TAG: ${{ needs.build.outputs.commit_tag }}
-  #         DST:        ${{ steps.promote.outputs.dst }}
-  #       run: |
-  #         COMPONENT=$(basename "$DST" | cut -d':' -f1)
-  #         GHCR="ghcr.io/${{ github.repository_owner }}/$COMPONENT:secure-$COMMIT_TAG"
-  #         echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-  #         docker tag "$DST" "$GHCR"
-  #         docker push "$GHCR"
+          # Check for successful HTTP status (2xx)
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "Email sent successfully! HTTP Status: $HTTP_STATUS"
+          else
+            echo "Error sending email. HTTP Status: $HTTP_STATUS"
+            exit 1 # Fail the step on error
+          fi          
