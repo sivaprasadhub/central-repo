@@ -113,28 +113,28 @@ jobs:
           echo "images_json=$(cat /tmp/list.json)" >> "$GITHUB_OUTPUT"
           echo "first_image=$(head -n1 /tmp/built.txt)" >> "$GITHUB_OUTPUT"
 
-#       - name: Create approval email content
-#         if: steps.collect.outputs.images_json != '[]'
-#         run: |
-#           cat <<EOF > email.txt
-# From: mailtosiva369@gmail.com
-# To: sivaprasad3697@gmail.com
-# Subject: Approval Required: Docker Image Built
-# ...
-# EOF
+      - name: Create approval email content
+        if: steps.collect.outputs.images_json != '[]'
+        run: |
+          cat <<EOF > email.txt
+From: mailtosiva369@gmail.com
+To: sivaprasad3697@gmail.com
+Subject: Approval Required: Docker Image Built
+...
+EOF
 
-# A Docker image has been built and pushed to the quarantine registry.
+A Docker image has been built and pushed to the quarantine registry.
 
-# Image URI: ${{ steps.collect.outputs.first_image }}
+Image URI: ${{ steps.collect.outputs.first_image }}
 
-# To approve and sign the image, please visit:
+To approve and sign the image, please visit:
 
-# https://github.com/${{ github.repository }}/actions/workflows/approve-and-sign.yml
+https://github.com/${{ github.repository }}/actions/workflows/approve-and-sign.yml
 
-# Click “Run Workflow” and enter the image URI.
+Click “Run Workflow” and enter the image URI.
 
-# Thank you.
-# EOF
+Thank you.
+EOF
 
 #       - name: Send approval email via SendGrid
 #         if: steps.collect.outputs.images_json != '[]'
