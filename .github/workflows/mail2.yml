@@ -1,7 +1,7 @@
 # Workflow name
 name: Send Email Notification
 
-Triggers for the workflow
+#Triggers for the workflow
 on:
   workflow_dispatch: # Manual trigger
   push:
