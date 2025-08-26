@@ -134,12 +134,15 @@ jobs:
           SUBJECT: GitHub Actions Workflow Notification # Email subject
           BODY_TEXT: | # Email body content
             Hello,
+            The following Docker images have been built and are awaiting your approval:
 
-            Your GitHub Actions workflow has completed successfully!
-            Repository: ${{ github.repository }}
-            Workflow: ${{ github.workflow }}
-            Run ID: ${{ github.run_id }}
-            Commit: ${{ github.sha }}
+            ${{ env.IMAGES }}
+
+            # Your GitHub Actions workflow has completed successfully!
+            # Repository: ${{ github.repository }}
+            # Workflow: ${{ github.workflow }}
+            # Run ID: ${{ github.run_id }}
+            # Commit: ${{ github.sha }}
 
             To approve and sign the image, please visit:
             https://github.com/${{ github.repository }}/actions/workflows/approvesign.yml
