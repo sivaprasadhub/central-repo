@@ -9,9 +9,13 @@ on:
 jobs:
   send_email:
     runs-on: ubuntu-latest
+    fail-fast: false # Set to false if you want other steps in this job to run even if one fails
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install jq (for JSON parsing, optional)
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Send email via SendGrid API
         env:
@@ -30,47 +34,59 @@ jobs:
 
             Best regards,
             GitHub Actions Bot
+        # continue-on-error: true # Uncomment this line if you want the workflow to continue even if email sending fails
         run: |
-          # Using curl to send email via SendGrid's Mail Send API
-          # https://docs.sendgrid.com/api-reference/mail-send/mail-send
-          curl -X POST \
-            https://api.sendgrid.com/v3/mail/send \
-            -H "Authorization: Bearer $SENDGRID_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "personalizations": [
+          # Construct the JSON payload
+          JSON_PAYLOAD=$(jq -n \
+            --arg to_email "$TO_EMAIL" \
+            --arg from_email "$FROM_EMAIL" \
+            --arg subject "$SUBJECT" \
+            --arg body_text "$BODY_TEXT" \
+            '{
+              personalizations: [
                 {
-                  "to": [
+                  to: [
                     {
-                      "email": "'"$TO_EMAIL"'"
+                      email: $to_email
                     }
                   ]
                 }
               ],
-              "from": {
-                "email": "'"$FROM_EMAIL"'"
+              from: {
+                email: $from_email
               },
-              "subject": "'"$SUBJECT"'",
-              "content": [
+              subject: $subject,
+              content: [
                 {
-                  "type": "text/plain",
-                  "value": "'"$BODY_TEXT"'"
+                  type: "text/plain",
+                  value: $body_text
                 }
               ]
-            }'
-          echo "Email sent successfully!"
+            }')
 
-      - name: Send email via SendGrid Action (Alternative)
-        # This is often cleaner if a good action exists
-        # You might need to install it from the marketplace or find its repo
-        # Example: https://github.com/sendgrid/sendgrid-action
-        # Note: This specific action might be outdated or require specific setup.
-        # Always check the action's documentation.
-        if: false # Set to true to enable this step and disable the curl one
-        uses: sendgrid/sendgrid-action@v1.0.0 # Check for the latest version
-        with:
-          api_key: ${{ secrets.SENDGRID_API_KEY }}
-          to: ${{ env.TO_EMAIL }}
-          from: ${{ env.FROM_EMAIL }}
-          subject: ${{ env.SUBJECT }}
-          content: ${{ env.BODY_TEXT }}
+          echo "Sending email to $TO_EMAIL from $FROM_EMAIL with subject: $SUBJECT"
+          echo "Payload: $JSON_PAYLOAD" # For debugging, remove in production if sensitive
+
+          # Using curl to send email via SendGrid's Mail Send API
+          # https://docs.sendgrid.com/api-reference/mail-send/mail-send
+          CURL_RESPONSE=$(curl -s -X POST \
+            https://api.sendgrid.com/v3/mail/send \
+            -H "Authorization: Bearer $SENDGRID_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$JSON_PAYLOAD" \
+            -w "\nHTTP_STATUS:%{http_code}") # Capture HTTP status code
+
+          HTTP_STATUS=$(echo "$CURL_RESPONSE" | sed -n 's/.*HTTP_STATUS:\([0-9]*\)/\1/p')
+          RESPONSE_BODY=$(echo "$CURL_RESPONSE" | sed 's/HTTP_STATUS:[0-9]*//')
+
+          echo "SendGrid API Response (HTTP Status: $HTTP_STATUS):"
+          echo "$RESPONSE_BODY"
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "Email sent successfully! HTTP Status: $HTTP_STATUS"
+          else
+            echo "Error sending email. HTTP Status: $HTTP_STATUS"
+            # You can parse the error message from RESPONSE_BODY here if needed
+            # For example: echo "$RESPONSE_BODY" | jq '.errors[0].message'
+            exit 1 # Fail the step if email sending was not successful
+          fi
