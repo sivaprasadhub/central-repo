@@ -1,5 +1,5 @@
 ###############################################################################
-# Workflow: Build ➜ Container‑Analysis Scan ➜ Promote
+# Workflow: Build ➜ Notify
 ###############################################################################
 name: Build ➜ Notify
 
@@ -116,6 +116,7 @@ jobs:
 # Job 2: Notifying through Mail
 ###############################################################################
   send_email:
+    needs: build
     runs-on: ubuntu-latest # Runner environment
 
     steps:
