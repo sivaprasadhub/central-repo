@@ -132,7 +132,7 @@ jobs:
           args: email.txt
         env:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
-          #SCRIPT_FILEPATH: .github/sendgrid.js
+          SCRIPT_FILEPATH: .github/sendgrid.js
 
 
 #       # Collect list of built images
