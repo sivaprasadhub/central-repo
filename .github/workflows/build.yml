@@ -107,6 +107,35 @@ jobs:
             echo "$FULL" >> /tmp/built.txt
           done
 
+      - id: collect
+        run: |
+          jq -Rsc 'split("\n")[:-1]' /tmp/built.txt > /tmp/list.json
+          echo "images_json=$(cat /tmp/list.json)" >> "$GITHUB_OUTPUT"
+          echo "first_image=$(head -n1 /tmp/built.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Send approval email
+        if: steps.collect.outputs.images_json != '[]'
+        uses: mbergmann/sendgrid-action@v1
+        with:
+          api_key: ${{ secrets.SENDGRID_API_KEY }}
+          from: 'mailtosiva369@gmail.com'
+          reply_to: 'mailtosiva369@gmail.com'
+          to: 'sivaprasad3697@gmail.com'
+          subject: 'Approval Required: Docker Image Built'
+          content: |
+            A Docker image has been built and pushed to the quarantine registry.
+
+            Image URI: ${{ steps.collect.outputs.first_image }}
+
+            To approve and sign the image, please visit:
+
+            https://github.com/${{ github.repository }}/actions/workflows/approve-and-sign.yml
+            https://github.com/sivaprasadhub/central-repo/actions/workflows/approvesign.yml
+            
+            Click “Run Workflow” and enter the image URI.
+
+            Thank you.    
+
 #       # Collect list of built images
 #       - id: collect
 #         name: Collect built image list

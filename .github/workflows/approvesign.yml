@@ -1,0 +1,17 @@
+name: Approve and Sign (Test)
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_uri:
+        description: 'Image URI to approve and sign'
+        required: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print Hello
+        run: |
+          echo "✅ Hello! This is a test approval workflow."
+          echo "📦 Received image URI: ${{ github.event.inputs.image_uri }}"
