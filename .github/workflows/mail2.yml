@@ -1,12 +1,12 @@
 # Workflow name
 name: Send Email Notification
 
-# Triggers for the workflow
-# on:
-#   workflow_dispatch: # Manual trigger
-#   push:
-#     branches:
-#       - main # On push to main branch
+Triggers for the workflow
+on:
+  workflow_dispatch: # Manual trigger
+  push:
+    branches:
+      - main # On push to main branch
 
 # Define jobs
 jobs:
@@ -34,6 +34,10 @@ jobs:
             Workflow: ${{ github.workflow }}
             Run ID: ${{ github.run_id }}
             Commit: ${{ github.sha }}
+
+            To approve and sign the image, please visit:
+            https://github.com/${{ github.repository }}/actions/workflows/approvesign.yml
+            Click "Run Workflow" and enter the image URI.
 
             Best regards,
             GitHub Actions Bot
