@@ -95,30 +95,35 @@ jobs:
       # - name: Set execute permission for sendgrid.js
       #   run: chmod +x .github/sendgrid.js
 
-      - name: Setup Node.js 16
-        uses: actions/setup-node@v3
-        with:
-          node-version: '16'
+      # - name: Setup Node.js 16
+      #   uses: actions/setup-node@v3
+      #   with:
+      #     node-version: '16'
 
-      - name: Install dependencies
-        run: |
-          npm install @sendgrid/mail
-          chmod +x .github/sendgrid.js    
+      # - name: Install dependencies
+      #   run: |
+      #     npm install @sendgrid/mail
+      #     chmod +x .github/sendgrid.js    
 
-      - name: Create approval email content
-        if: steps.collect.outputs.images_json != '[]'
-        run: |
-          cat <<EOF > email.txt
-          From: mailtosiva369@gmail.com
-          To: sivaprasad3697@gmail.com
-          Subject: Approval Required: Docker Image Built
-          A Docker image has been built and pushed to the quarantine registry.
-          Image URI: ${{ steps.collect.outputs.first_image }}
-          To approve and sign the image, please visit:
-          https://github.com/${{ github.repository }}/actions/workflows/approve-and-sign.yml
-          Click “Run Workflow” and enter the image URI.
-          Thank you.
-          EOF
+      # - name: Create approval email content
+      #   if: steps.collect.outputs.images_json != '[]'
+      #   run: |
+      #     cat <<EOF > email.txt
+      #     From: mailtosiva369@gmail.com
+      #     To: sivaprasad3697@gmail.com
+      #     Subject: Approval Required: Docker Image Built
+      #     A Docker image has been built and pushed to the quarantine registry.
+      #     Image URI: ${{ steps.collect.outputs.first_image }}
+      #     To approve and sign the image, please visit:
+      #     https://github.com/${{ github.repository }}/actions/workflows/approve-and-sign.yml
+      #     Click “Run Workflow” and enter the image URI.
+      #     Thank you.
+      #     EOF
+      - name: Set execute permission for sendgrid.js
+        run: chmod +x .github/sendgrid.js
+
+
+
 
       - name: Send approval email via SendGrid
         if: steps.collect.outputs.images_json != '[]'
