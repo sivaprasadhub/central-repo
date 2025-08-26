@@ -135,13 +135,13 @@ jobs:
           EOF
 
 
-#       - name: Send approval email via SendGrid
-#         if: steps.collect.outputs.images_json != '[]'
-#         uses: peter-evans/sendgrid-action@v1
-#         with:
-#           args: email.txt
-#         env:
-#           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}    
+      - name: Send approval email via SendGrid
+        if: steps.collect.outputs.images_json != '[]'
+        uses: peter-evans/sendgrid-action@v1
+        with:
+          args: email.txt
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}    
 
 #       # Collect list of built images
 #       - id: collect
