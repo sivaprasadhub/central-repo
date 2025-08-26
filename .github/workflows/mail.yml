@@ -2,11 +2,11 @@
 name: Send Email Notification
 
 # Triggers for the workflow
-on:
-  workflow_dispatch: # Manual trigger
-  push:
-    branches:
-      - main # On push to main branch
+# on:
+#   workflow_dispatch: # Manual trigger
+#   push:
+#     branches:
+#       - main # On push to main branch
 
 # Define jobs
 jobs:
