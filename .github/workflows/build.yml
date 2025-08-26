@@ -92,13 +92,18 @@ jobs:
           echo "images_json=$(cat /tmp/list.json)" >> "$GITHUB_OUTPUT"
           echo "first_image=$(head -n1 /tmp/built.txt)" >> "$GITHUB_OUTPUT"
 
-      - name: Set execute permission for sendgrid.js
-        run: chmod +x .github/sendgrid.js
+      # - name: Set execute permission for sendgrid.js
+      #   run: chmod +x .github/sendgrid.js
 
       - name: Setup Node.js 16
         uses: actions/setup-node@v3
         with:
           node-version: '16'
+
+      - name: Install dependencies
+        run: |
+          npm install @sendgrid/mail
+          chmod +x .github/sendgrid.js    
 
       - name: Create approval email content
         if: steps.collect.outputs.images_json != '[]'
