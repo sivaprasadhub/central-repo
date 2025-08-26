@@ -48,8 +48,6 @@ jobs:
           cd "$REPO_NAME"
           git checkout "${{ github.event.client_payload.sha }}"
           echo "REPO_NAME=$REPO_NAME" >> "$GITHUB_OUTPUT"
-
-
       # Resolve base commit (empty tree on first run)
       - id: base
         name: Resolve base commit
@@ -60,7 +58,6 @@ jobs:
           else
             echo "sha=4b825dc642cb6eb9a060e54bf8d69288fbee4904" >> "$GITHUB_OUTPUT"
           fi
-
       # Detect Dockerfiles that changed
       - id: diff
         name: Detect changed Dockerfiles
@@ -73,7 +70,6 @@ jobs:
           use_rest_api: false
           files: |
             **/Dockerfile*
-
       # Authenticate to Google Cloud
       - uses: google-github-actions/auth@v1
         with:
@@ -106,34 +102,32 @@ jobs:
             docker push "$FULL"
             echo "$FULL" >> /tmp/built.txt
           done
-
       - id: collect
         run: |
           jq -Rsc 'split("\n")[:-1]' /tmp/built.txt > /tmp/list.json
           echo "images_json=$(cat /tmp/list.json)" >> "$GITHUB_OUTPUT"
           echo "first_image=$(head -n1 /tmp/built.txt)" >> "$GITHUB_OUTPUT"
-
+      - name: Create approval email content
+        if: steps.collect.outputs.images_json != '[]'
+        run: |
+          cat <<EOF > email.txt
+          From: mailtosiva369@gmail.com
+          To: sivaprasad3697@gmail.com
+          Subject: Approval Required: Docker Image Built
+          A Docker image has been built and pushed to the quarantine registry.
+          Image URI: ${{ steps.collect.outputs.first_image }}
+          To approve and sign the image, please visit:
+          https://github.com/${{ github.repository }}/actions/workflows/approve-and-sign.yml
+          Click “Run Workflow” and enter the image URI.
+          Thank you.
+          EOF
       - name: Send approval email via SendGrid
         if: steps.collect.outputs.images_json != '[]'
-        uses: burnett01/sendgrid-action@v1
+        uses: peter-evans/sendgrid-action@v1
         with:
-          sendgrid-token: ${{ secrets.SENDGRID_API_KEY }}
-          from: 'mailtosiva369@gmail.com'
-          to: 'sivaprasad3697@gmail.com'
-          subject: 'Approval Required: Docker Image Built'
-          body: |
-            A Docker image has been built and pushed to the quarantine registry.
-
-            Image URI: ${{ steps.collect.outputs.first_image }}
-
-            To approve and sign the image, please visit:
-
-            https://github.com/${{ github.repository }}/actions/workflows/approve-and-sign.yml
-
-            Click “Run Workflow” and enter the image URI.
-
-            Thank you.
-   
+          args: email.txt
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}    
 
 #       # Collect list of built images
 #       - id: collect
