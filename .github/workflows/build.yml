@@ -107,11 +107,11 @@ jobs:
             echo "$FULL" >> /tmp/built.txt
           done
 
-#       - id: collect
-#         run: |
-#           jq -Rsc 'split("\n")[:-1]' /tmp/built.txt > /tmp/list.json
-#           echo "images_json=$(cat /tmp/list.json)" >> "$GITHUB_OUTPUT"
-#           echo "first_image=$(head -n1 /tmp/built.txt)" >> "$GITHUB_OUTPUT"
+      - id: collect
+        run: |
+          jq -Rsc 'split("\n")[:-1]' /tmp/built.txt > /tmp/list.json
+          echo "images_json=$(cat /tmp/list.json)" >> "$GITHUB_OUTPUT"
+          echo "first_image=$(head -n1 /tmp/built.txt)" >> "$GITHUB_OUTPUT"
 
 #       - name: Create approval email content
 #         if: steps.collect.outputs.images_json != '[]'
