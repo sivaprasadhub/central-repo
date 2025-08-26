@@ -19,7 +19,7 @@ env:
   GAR_LOCATION:          us-central1
 
   PROJECT_ID: sivaprasad-426906       # GCP project for API calls
-  LOCATION:   us-central1                   # Container Analysis location
+  LOCATION:   us-central1              # Container Analysis location
 
 ###############################################################################
 # Job 1: Build and push changed Dockerfiles to the quarantine registry
@@ -48,6 +48,7 @@ jobs:
           cd "$REPO_NAME"
           git checkout "${{ github.event.client_payload.sha }}"
           echo "REPO_NAME=$REPO_NAME" >> "$GITHUB_OUTPUT"
+
       # Resolve base commit (empty tree on first run)
       - id: base
         name: Resolve base commit
@@ -58,6 +59,7 @@ jobs:
           else
             echo "sha=4b825dc642cb6eb9a060e54bf8d69288fbee4904" >> "$GITHUB_OUTPUT"
           fi
+
       # Detect Dockerfiles that changed
       - id: diff
         name: Detect changed Dockerfiles
@@ -70,6 +72,7 @@ jobs:
           use_rest_api: false
           files: |
             **/Dockerfile*
+
       # Authenticate to Google Cloud
       - uses: google-github-actions/auth@v1
         with:
@@ -102,11 +105,24 @@ jobs:
             docker push "$FULL"
             echo "$FULL" >> /tmp/built.txt
           done
+
       - id: collect
         run: |
           jq -Rsc 'split("\n")[:-1]' /tmp/built.txt > /tmp/list.json
           echo "images_json=$(cat /tmp/list.json)" >> "$GITHUB_OUTPUT"
           echo "first_image=$(head -n1 /tmp/built.txt)" >> "$GITHUB_OUTPUT"
+
+      # Make sure sendgrid.js script has execute permission
+      - name: Set execute permission for sendgrid.js
+        run: chmod +x .github/sendgrid.js
+
+      # Set up Node.js 16 (to avoid syntax errors with optional chaining)
+      - name: Setup Node.js 16
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      # Create approval email content
       - name: Create approval email content
         if: steps.collect.outputs.images_json != '[]'
         run: |
@@ -121,13 +137,16 @@ jobs:
           Click “Run Workflow” and enter the image URI.
           Thank you.
           EOF
+
+      # Send approval email via SendGrid
       - name: Send approval email via SendGrid
         if: steps.collect.outputs.images_json != '[]'
         uses: peter-evans/sendgrid-action@v1
         with:
           args: email.txt
         env:
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}    
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          SCRIPT_FILEPATH: .github/sendgrid.js
 
 #       # Collect list of built images
 #       - id: collect
