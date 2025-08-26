@@ -23,7 +23,7 @@ jobs:
       - name: Send email via SendGrid API
         env:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }} # Your SendGrid API key
-          TO_EMAIL: sivaprasad3697@gmail.com # Recipient email
+          TO_EMAIL: mailtosiva369@gmail.com # Recipient email
           FROM_EMAIL: mailtosiva369@gmail.com # Verified sender email
           SUBJECT: GitHub Actions Workflow Notification # Email subject
           BODY_TEXT: | # Email body content
