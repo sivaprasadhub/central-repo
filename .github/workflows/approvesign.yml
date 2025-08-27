@@ -6,6 +6,8 @@ on:
       image_uri:
         description: 'Image URI to approve and sign'
         # required: true
+        required: false
+        default: 'default-image-uri'
 
 jobs:
   test:
