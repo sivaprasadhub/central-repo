@@ -189,4 +189,4 @@ jobs:
           else
             echo "Error sending email. HTTP Status: $HTTP_STATUS"
             exit 1 # Fail the step on error
-          fi
+          fi 
