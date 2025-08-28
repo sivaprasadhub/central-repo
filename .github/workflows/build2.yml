@@ -148,7 +148,6 @@ jobs:
           # Split the comma-separated TO_EMAILS string into a JSON array of objects
           # Example: "email1@example.com,email2@example.com" -> [{"email":"email1@example.com"},{"email":"email2@example.com"}]
           TO_RECIPIENTS_JSON=$(echo "$TO_EMAILS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk '{printf "{\"email\":\"%s\"},", $0}' | sed 's/,$//' | awk '{print "[" $0 "]"}' )
-
           JSON_PAYLOAD=$(jq -n \
             --argjson to_recipients "$TO_RECIPIENTS_JSON" \
             --arg from_email "$FROM_EMAIL" \
@@ -171,7 +170,6 @@ jobs:
                 }
               ]
             }')
-
           echo "Sending email to $TO_EMAILS from $FROM_EMAIL with subject: $SUBJECT"
           # Send email using curl to SendGrid API
           CURL_RESPONSE=$(curl -s -X POST \
