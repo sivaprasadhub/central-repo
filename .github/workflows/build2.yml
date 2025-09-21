@@ -113,9 +113,6 @@ jobs:
             echo "images_json=[]" >> "$GITHUB_OUTPUT"
           fi
 
-###############################################################################
-# Job 2: Notifying through Mail
-###############################################################################
   send_email:
     needs: build
     runs-on: ubuntu-latest # Runner environment
@@ -127,28 +124,51 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq # Install JSON processor
 
+      # ✅ UPDATED: Generate dynamic approval links
+      - name: Generate approval links
+        id: links
+        run: |
+          IMAGES='${{ needs.build.outputs.built_images }}'
+          REPO="${{ github.repository }}"
+          WORKFLOW="approvesign.yml"
+
+          COUNT=$(echo "$IMAGES" | jq 'length')
+          if [ "$COUNT" -eq 0 ]; then
+            echo "links<<EOF" >> $GITHUB_OUTPUT
+            echo "NO_IMAGES" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            LINKS=$(echo "$IMAGES" | jq -r --arg repo "$REPO" --arg wf "$WORKFLOW" '
+              .[] | "https://github.com/\($repo)/actions/workflows/\($wf)?inputs[image_uri]=\(.)"'
+            )
+            echo "links<<EOF" >> $GITHUB_OUTPUT
+            echo "$LINKS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Send email via SendGrid API
         env:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }} # Your SendGrid API key
-          # --- MODIFIED: Define multiple recipients as a comma-separated string ---
           TO_EMAILS: "mailtosiva369@gmail.com,sivaprasad3697@gmail.com"
           FROM_EMAIL: mailtosiva369@gmail.com # Verified sender email
           SUBJECT: GitHub Actions Workflow Notification # Email subject
-          BODY_TEXT: | # Email body content
-            Hello,
-            The following Docker images have been built and are awaiting your approval:
-            ${{ needs.build.outputs.built_images }}
-            
-            To approve and sign the image, please visit:
-            https://github.com/${{ github.repository }}/actions/workflows/approvesign.yml
-            Click "Run Workflow" and enter the image URI.
-            Best regards,
-            GitHub Actions Bot
         run: |
-          # --- MODIFIED: Construct JSON payload for SendGrid API with multiple recipients ---
-          # Split the comma-separated TO_EMAILS string into a JSON array of objects
-          # Example: "email1@example.com,email2@example.com" -> [{"email":"email1@example.com"},{"email":"email2@example.com"}]
+          LINKS="${{ steps.links.outputs.links }}"
+
+          # ✅ UPDATED: Build email body with dynamic links or friendly message
+          if [ "$LINKS" = "NO_IMAGES" ]; then
+            BODY_TEXT="Hello,\n\nNo Docker images were built in this run. Nothing to approve.\n\nBest regards,\nGitHub Actions Bot"
+          else
+            BODY_TEXT="Hello,\n\nThe following Docker images have been built and are awaiting your approval:\n\n"
+            while IFS= read -r link; do
+              BODY_TEXT+="👉 $link\n"
+            done <<< "$LINKS"
+            BODY_TEXT+="\nBest regards,\nGitHub Actions Bot"
+          fi
+
+          # --- MODIFIED: Convert multiple recipients into JSON ---
           TO_RECIPIENTS_JSON=$(echo "$TO_EMAILS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk '{printf "{\"email\":\"%s\"},", $0}' | sed 's/,$//' | awk '{print "[" $0 "]"}' )
+
+          # --- MODIFIED: Build SendGrid payload ---
           JSON_PAYLOAD=$(jq -n \
             --argjson to_recipients "$TO_RECIPIENTS_JSON" \
             --arg from_email "$FROM_EMAIL" \
@@ -190,4 +210,5 @@ jobs:
           else
             echo "Error sending email. HTTP Status: $HTTP_STATUS"
             exit 1 # Fail the step on error
-          fi 
+          fi
+          
