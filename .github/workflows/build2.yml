@@ -7,16 +7,22 @@ on:
   repository_dispatch:
     types: [app-code-change]
 
+###############################################################################
+# Global environment variables
+###############################################################################
 env:
   WORKLOAD_IDENTITY_PROVIDER: 'projects/954176678706/locations/global/workloadIdentityPools/github-demo-pool/providers/github'
-  SERVICE_ACCOUNT: 'github-action-wif@sivaprasad-426906.iam.gserviceaccount.com'
+  SERVICE_ACCOUNT:            'github-action-wif@sivaprasad-426906.iam.gserviceaccount.com'
 
-  QUAR_IMAGE_REGISTRY: us-central1-docker.pkg.dev/sivaprasad-426906/cloud-run-source-deploy
-  GAR_LOCATION: us-central1
+  QUAR_IMAGE_REGISTRY:   us-central1-docker.pkg.dev/sivaprasad-426906/cloud-run-source-deploy
+  GAR_LOCATION:          us-central1
 
   PROJECT_ID: sivaprasad-426906
-  LOCATION: us-central1
+  LOCATION:   us-central1
 
+###############################################################################
+# Job 1: Build and push changed Dockerfiles to the quarantine registry
+###############################################################################
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,8 +30,8 @@ jobs:
 
     outputs:
       built_images: ${{ steps.collect.outputs.images_json }}
-      repo_name: ${{ steps.clone_repo.outputs.REPO_NAME }}
-      commit_tag: ${{ github.event.client_payload.sha }}
+      repo_name:    ${{ steps.clone_repo.outputs.REPO_NAME }}
+      commit_tag:   ${{ github.event.client_payload.sha }}
 
     steps:
       - uses: actions/checkout@v3
@@ -48,7 +54,6 @@ jobs:
             echo "sha=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
           else
             echo "sha=4b825dc642cb6eb9a060e54bf8d69288fbee4904" >> "$GITHUB_OUTPUT"
-          fi
 
       - id: diff
         name: Detect changed Dockerfiles
@@ -57,7 +62,7 @@ jobs:
           token: ${{ github.token }}
           path: ${{ steps.clone_repo.outputs.REPO_NAME }}
           base_sha: ${{ steps.base.outputs.sha }}
-          sha: ${{ github.event.client_payload.sha }}
+          sha:      ${{ github.event.client_payload.sha }}
           use_rest_api: false
           files: |
             **/Dockerfile*
@@ -65,7 +70,7 @@ jobs:
       - uses: google-github-actions/auth@v1
         with:
           workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ env.SERVICE_ACCOUNT }}
+          service_account:            ${{ env.SERVICE_ACCOUNT }}
 
       - uses: docker/setup-buildx-action@v2
 
@@ -94,14 +99,15 @@ jobs:
       - id: collect
         name: Collect built image list
         run: |
-          set -e
           if [ -s /tmp/built.txt ]; then
             jq -Rsc 'split("\n")[:-1]' /tmp/built.txt > /tmp/list.json
             echo "images_json=$(cat /tmp/list.json)" >> "$GITHUB_OUTPUT"
           else
             echo "images_json=[]" >> "$GITHUB_OUTPUT"
-          fi
 
+###############################################################################
+# Job 2: Send email with dynamic approval links
+###############################################################################
   send_email:
     needs: build
     runs-on: ubuntu-latest
@@ -117,7 +123,9 @@ jobs:
         id: links
         run: |
           set -e
-          IMAGES=${{ needs.build.outputs.built_images }}
+          # Properly handle JSON output from previous step
+          IMAGES='${{ needs.build.outputs.built_images }}'
+          IMAGES=$(echo "$IMAGES" | jq -c '.')  # ensures valid JSON
           REPO="${{ github.repository }}"
           WORKFLOW="approvesign.yml"
 
@@ -132,7 +140,6 @@ jobs:
             echo "links<<EOF" >> $GITHUB_OUTPUT
             echo "$LINKS" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
-          fi
 
       - name: Send email via SendGrid API
         env:
@@ -141,7 +148,6 @@ jobs:
           FROM_EMAIL: mailtosiva369@gmail.com
           SUBJECT: GitHub Actions Workflow Notification
         run: |
-          set -e
           LINKS="${{ steps.links.outputs.links }}"
 
           if [ "$LINKS" = "NO_IMAGES" ]; then
@@ -154,7 +160,7 @@ jobs:
             BODY_TEXT+="\nBest regards,\nGitHub Actions Bot"
           fi
 
-          TO_RECIPIENTS_JSON=$(echo "$TO_EMAILS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk '{printf "{\"email\":\"%s\"},", $0}' | sed 's/,$//' | awk '{print "[" $0 "]"}' )
+          TO_RECIPIENTS_JSON=$(echo "$TO_EMAILS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk '{printf "{\"email\":\"%s\"},", $0}' | sed 's/,$//' | awk '{print "[" $0 "]"}')
 
           JSON_PAYLOAD=$(jq -n \
             --argjson to_recipients "$TO_RECIPIENTS_JSON" \
@@ -163,12 +169,19 @@ jobs:
             --arg body_text "$BODY_TEXT" \
             '{
               personalizations: [
-                { to: $to_recipients }
+                {
+                  to: $to_recipients
+                }
               ],
-              from: { email: $from_email },
+              from: {
+                email: $from_email
+              },
               subject: $subject,
               content: [
-                { type: "text/plain", value: $body_text }
+                {
+                  type: "text/plain",
+                  value: $body_text
+                }
               ]
             }')
 
@@ -191,4 +204,3 @@ jobs:
           else
             echo "Error sending email. HTTP Status: $HTTP_STATUS"
             exit 1
-          fi
