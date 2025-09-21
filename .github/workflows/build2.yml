@@ -12,13 +12,13 @@ on:
 ###############################################################################
 env:
   WORKLOAD_IDENTITY_PROVIDER: 'projects/954176678706/locations/global/workloadIdentityPools/github-demo-pool/providers/github'
-  SERVICE_ACCOUNT:            'github-action-wif@sivaprasad-426906.iam.gserviceaccount.com'
+  SERVICE_ACCOUNT: 'github-action-wif@sivaprasad-426906.iam.gserviceaccount.com'
 
-  QUAR_IMAGE_REGISTRY:   us-central1-docker.pkg.dev/sivaprasad-426906/cloud-run-source-deploy
-  GAR_LOCATION:          us-central1
+  QUAR_IMAGE_REGISTRY: us-central1-docker.pkg.dev/sivaprasad-426906/cloud-run-source-deploy
+  GAR_LOCATION: us-central1
 
   PROJECT_ID: sivaprasad-426906
-  LOCATION:   us-central1
+  LOCATION: us-central1
 
 ###############################################################################
 # Job 1: Build and push changed Dockerfiles to the quarantine registry
@@ -30,8 +30,8 @@ jobs:
 
     outputs:
       built_images: ${{ steps.collect.outputs.images_json }}
-      repo_name:    ${{ steps.clone_repo.outputs.REPO_NAME }}
-      commit_tag:   ${{ github.event.client_payload.sha }}
+      repo_name: ${{ steps.clone_repo.outputs.REPO_NAME }}
+      commit_tag: ${{ github.event.client_payload.sha }}
 
     steps:
       - uses: actions/checkout@v3
@@ -39,6 +39,7 @@ jobs:
       - id: clone_repo
         name: Clone application repository
         run: |
+          set -e
           REPO_FULL="${{ github.event.client_payload.repository }}"
           REPO_NAME="${REPO_FULL#*/}"
           git clone https://x-access-token:${{ secrets.BUILDER_REPO_TOKEN }}@github.com/$REPO_FULL "$REPO_NAME"
@@ -49,11 +50,13 @@ jobs:
       - id: base
         name: Resolve base commit
         run: |
+          set -e
           cd "${{ steps.clone_repo.outputs.REPO_NAME }}"
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
             echo "sha=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
           else
             echo "sha=4b825dc642cb6eb9a060e54bf8d69288fbee4904" >> "$GITHUB_OUTPUT"
+          fi
 
       - id: diff
         name: Detect changed Dockerfiles
@@ -62,7 +65,7 @@ jobs:
           token: ${{ github.token }}
           path: ${{ steps.clone_repo.outputs.REPO_NAME }}
           base_sha: ${{ steps.base.outputs.sha }}
-          sha:      ${{ github.event.client_payload.sha }}
+          sha: ${{ github.event.client_payload.sha }}
           use_rest_api: false
           files: |
             **/Dockerfile*
@@ -70,7 +73,7 @@ jobs:
       - uses: google-github-actions/auth@v1
         with:
           workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account:            ${{ env.SERVICE_ACCOUNT }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
 
       - uses: docker/setup-buildx-action@v2
 
@@ -99,6 +102,7 @@ jobs:
       - id: collect
         name: Collect built image list
         run: |
+          set -e
           if [ -s /tmp/built.txt ]; then
             jq -Rsc 'split("\n")[:-1]' /tmp/built.txt > /tmp/list.json
             echo "images_json=$(cat /tmp/list.json)" >> "$GITHUB_OUTPUT"
@@ -123,8 +127,7 @@ jobs:
         id: links
         run: |
           set -e
-          # Properly handle JSON output from previous step
-          IMAGES='${{ needs.build.outputs.built_images }}'
+          IMAGES="${{ needs.build.outputs.built_images }}"
           IMAGES=$(echo "$IMAGES" | jq -c '.')  # ensures valid JSON
           REPO="${{ github.repository }}"
           WORKFLOW="approvesign.yml"
@@ -148,6 +151,7 @@ jobs:
           FROM_EMAIL: mailtosiva369@gmail.com
           SUBJECT: GitHub Actions Workflow Notification
         run: |
+          set -e
           LINKS="${{ steps.links.outputs.links }}"
 
           if [ "$LINKS" = "NO_IMAGES" ]; then
