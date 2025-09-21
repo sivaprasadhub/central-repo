@@ -123,7 +123,7 @@ jobs:
       - name: Generate approval links
         id: links
         run: |
-          IMAGES='${{ needs.build.outputs.built_images }}'
+          IMAGES=${{ needs.build.outputs.built_images }}
           REPO="${{ github.repository }}"
           WORKFLOW="approvesign.yml"
 
@@ -139,6 +139,7 @@ jobs:
             echo "links<<EOF" >> $GITHUB_OUTPUT
             echo "$LINKS" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
+          fi
 
       - name: Send email via SendGrid API
         env:
