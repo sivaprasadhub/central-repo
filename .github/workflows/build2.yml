@@ -7,9 +7,6 @@ on:
   repository_dispatch:
     types: [app-code-change]
 
-###############################################################################
-# Global environment variables
-###############################################################################
 env:
   WORKLOAD_IDENTITY_PROVIDER: 'projects/954176678706/locations/global/workloadIdentityPools/github-demo-pool/providers/github'
   SERVICE_ACCOUNT: 'github-action-wif@sivaprasad-426906.iam.gserviceaccount.com'
@@ -20,9 +17,6 @@ env:
   PROJECT_ID: sivaprasad-426906
   LOCATION: us-central1
 
-###############################################################################
-# Job 1: Build and push changed Dockerfiles to the quarantine registry
-###############################################################################
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -100,15 +94,14 @@ jobs:
       - id: collect
         name: Collect built image list
         run: |
+          set -e
           if [ -s /tmp/built.txt ]; then
             jq -Rsc 'split("\n")[:-1]' /tmp/built.txt > /tmp/list.json
             echo "images_json=$(cat /tmp/list.json)" >> "$GITHUB_OUTPUT"
           else
             echo "images_json=[]" >> "$GITHUB_OUTPUT"
+          fi
 
-###############################################################################
-# Job 2: Send Email with Dynamic Approval Links
-###############################################################################
   send_email:
     needs: build
     runs-on: ubuntu-latest
@@ -120,10 +113,10 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      # ✅ UPDATED: Generate dynamic approval links
       - name: Generate approval links
         id: links
         run: |
+          set -e
           IMAGES=${{ needs.build.outputs.built_images }}
           REPO="${{ github.repository }}"
           WORKFLOW="approvesign.yml"
@@ -134,12 +127,12 @@ jobs:
             echo "NO_IMAGES" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           else
-            LINKS=$(echo "$IMAGES" | jq -r --arg repo "$REPO" --arg wf "$WORKFLOW" '
-              .[] | "https://github.com/\($repo)/actions/workflows/\($wf)?inputs[image_uri]=\(.)"'
-            )
+            LINKS=$(echo "$IMAGES" | jq -r --arg repo "$REPO" --arg wf "$WORKFLOW" \
+              '.[] | "https://github.com/\($repo)/actions/workflows/\($wf)?inputs[image_uri]=\(.)"')
             echo "links<<EOF" >> $GITHUB_OUTPUT
             echo "$LINKS" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
+          fi
 
       - name: Send email via SendGrid API
         env:
@@ -148,6 +141,7 @@ jobs:
           FROM_EMAIL: mailtosiva369@gmail.com
           SUBJECT: GitHub Actions Workflow Notification
         run: |
+          set -e
           LINKS="${{ steps.links.outputs.links }}"
 
           if [ "$LINKS" = "NO_IMAGES" ]; then
@@ -169,19 +163,12 @@ jobs:
             --arg body_text "$BODY_TEXT" \
             '{
               personalizations: [
-                {
-                  to: $to_recipients
-                }
+                { to: $to_recipients }
               ],
-              from: {
-                email: $from_email
-              },
+              from: { email: $from_email },
               subject: $subject,
               content: [
-                {
-                  type: "text/plain",
-                  value: $body_text
-                }
+                { type: "text/plain", value: $body_text }
               ]
             }')
 
