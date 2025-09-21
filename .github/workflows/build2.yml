@@ -12,14 +12,13 @@ on:
 ###############################################################################
 env:
   WORKLOAD_IDENTITY_PROVIDER: 'projects/954176678706/locations/global/workloadIdentityPools/github-demo-pool/providers/github'
-  SERVICE_ACCOUNT:            'github-action-wif@sivaprasad-426906.iam.gserviceaccount.com'
+  SERVICE_ACCOUNT: 'github-action-wif@sivaprasad-426906.iam.gserviceaccount.com'
 
-  QUAR_IMAGE_REGISTRY:   us-central1-docker.pkg.dev/sivaprasad-426906/cloud-run-source-deploy
-  #SECURE_IMAGE_REGISTRY: us-central1-docker.pkg.dev/decent-creek-464109-p6/secure-repo
-  GAR_LOCATION:          us-central1
+  QUAR_IMAGE_REGISTRY: us-central1-docker.pkg.dev/sivaprasad-426906/cloud-run-source-deploy
+  GAR_LOCATION: us-central1
 
-  PROJECT_ID: sivaprasad-426906       # GCP project for API calls
-  LOCATION:   us-central1                   # Container Analysis location
+  PROJECT_ID: sivaprasad-426906
+  LOCATION: us-central1
 
 ###############################################################################
 # Job 1: Build and push changed Dockerfiles to the quarantine registry
@@ -31,14 +30,12 @@ jobs:
 
     outputs:
       built_images: ${{ steps.collect.outputs.images_json }}
-      repo_name:    ${{ steps.clone_repo.outputs.REPO_NAME }}
-      commit_tag:   ${{ github.event.client_payload.sha }}
+      repo_name: ${{ steps.clone_repo.outputs.REPO_NAME }}
+      commit_tag: ${{ github.event.client_payload.sha }}
 
     steps:
-      # Checkout orchestration repository
       - uses: actions/checkout@v3
 
-      # Clone the application repository at the triggering SHA
       - id: clone_repo
         name: Clone application repository
         run: |
@@ -48,7 +45,7 @@ jobs:
           cd "$REPO_NAME"
           git checkout "${{ github.event.client_payload.sha }}"
           echo "REPO_NAME=$REPO_NAME" >> "$GITHUB_OUTPUT"
-      # Resolve base commit (empty tree on first run)
+
       - id: base
         name: Resolve base commit
         run: |
@@ -58,7 +55,7 @@ jobs:
           else
             echo "sha=4b825dc642cb6eb9a060e54bf8d69288fbee4904" >> "$GITHUB_OUTPUT"
           fi
-      # Detect Dockerfiles that changed
+
       - id: diff
         name: Detect changed Dockerfiles
         uses: tj-actions/changed-files@v46
@@ -66,24 +63,21 @@ jobs:
           token: ${{ github.token }}
           path: ${{ steps.clone_repo.outputs.REPO_NAME }}
           base_sha: ${{ steps.base.outputs.sha }}
-          sha:      ${{ github.event.client_payload.sha }}
+          sha: ${{ github.event.client_payload.sha }}
           use_rest_api: false
           files: |
             **/Dockerfile*
-      # Authenticate to Google Cloud
+
       - uses: google-github-actions/auth@v1
         with:
           workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account:            ${{ env.SERVICE_ACCOUNT }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
 
-      # Set up Buildx builder
       - uses: docker/setup-buildx-action@v2
 
-      # Configure Docker for Artifact Registry
       - name: Configure docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev
 
-      # Build and push each changed Dockerfile
       - name: Build and push images
         run: |
           set -e
@@ -102,7 +96,7 @@ jobs:
             docker push "$FULL"
             echo "$FULL" >> /tmp/built.txt
           done
-      # Collect list of built images
+
       - id: collect
         name: Collect built image list
         run: |
@@ -111,24 +105,26 @@ jobs:
             echo "images_json=$(cat /tmp/list.json)" >> "$GITHUB_OUTPUT"
           else
             echo "images_json=[]" >> "$GITHUB_OUTPUT"
-          fi
 
+###############################################################################
+# Job 2: Send Email with Dynamic Approval Links
+###############################################################################
   send_email:
     needs: build
-    runs-on: ubuntu-latest # Runner environment
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 # Get repository code
+        uses: actions/checkout@v4
 
       - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq # Install JSON processor
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       # ✅ UPDATED: Generate dynamic approval links
       - name: Generate approval links
         id: links
         run: |
-          IMAGES='${{ needs.build.outputs.built_images }}'
+          IMAGES=${{ needs.build.outputs.built_images }}
           REPO="${{ github.repository }}"
           WORKFLOW="approvesign.yml"
 
@@ -147,14 +143,13 @@ jobs:
 
       - name: Send email via SendGrid API
         env:
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }} # Your SendGrid API key
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
           TO_EMAILS: "mailtosiva369@gmail.com,sivaprasad3697@gmail.com"
-          FROM_EMAIL: mailtosiva369@gmail.com # Verified sender email
-          SUBJECT: GitHub Actions Workflow Notification # Email subject
+          FROM_EMAIL: mailtosiva369@gmail.com
+          SUBJECT: GitHub Actions Workflow Notification
         run: |
           LINKS="${{ steps.links.outputs.links }}"
 
-          # ✅ UPDATED: Build email body with dynamic links or friendly message
           if [ "$LINKS" = "NO_IMAGES" ]; then
             BODY_TEXT="Hello,\n\nNo Docker images were built in this run. Nothing to approve.\n\nBest regards,\nGitHub Actions Bot"
           else
@@ -165,10 +160,8 @@ jobs:
             BODY_TEXT+="\nBest regards,\nGitHub Actions Bot"
           fi
 
-          # --- MODIFIED: Convert multiple recipients into JSON ---
           TO_RECIPIENTS_JSON=$(echo "$TO_EMAILS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk '{printf "{\"email\":\"%s\"},", $0}' | sed 's/,$//' | awk '{print "[" $0 "]"}' )
 
-          # --- MODIFIED: Build SendGrid payload ---
           JSON_PAYLOAD=$(jq -n \
             --argjson to_recipients "$TO_RECIPIENTS_JSON" \
             --arg from_email "$FROM_EMAIL" \
@@ -191,24 +184,24 @@ jobs:
                 }
               ]
             }')
+
           echo "Sending email to $TO_EMAILS from $FROM_EMAIL with subject: $SUBJECT"
-          # Send email using curl to SendGrid API
+
           CURL_RESPONSE=$(curl -s -X POST \
             https://api.sendgrid.com/v3/mail/send \
             -H "Authorization: Bearer $SENDGRID_API_KEY" \
             -H "Content-Type: application/json" \
             -d "$JSON_PAYLOAD" \
             -w "\nHTTP_STATUS:%{http_code}")
-          # Extract HTTP status and response body
+
           HTTP_STATUS=$(echo "$CURL_RESPONSE" | sed -n 's/.*HTTP_STATUS:\([0-9]*\)/\1/p')
           RESPONSE_BODY=$(echo "$CURL_RESPONSE" | sed 's/HTTP_STATUS:[0-9]*//')
           echo "SendGrid API Response (HTTP Status: $HTTP_STATUS):"
           echo "$RESPONSE_BODY"
-          # Check for successful HTTP status (2xx)
+
           if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
             echo "Email sent successfully! HTTP Status: $HTTP_STATUS"
           else
             echo "Error sending email. HTTP Status: $HTTP_STATUS"
-            exit 1 # Fail the step on error
+            exit 1
           fi
-          
