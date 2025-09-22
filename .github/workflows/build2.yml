@@ -152,8 +152,8 @@ jobs:
           TO_EMAILS: "mailtosiva369@gmail.com,sivaprasad3697@gmail.com"
           FROM_EMAIL: mailtosiva369@gmail.com # Verified sender email
           SUBJECT: GitHub Actions Workflow Notification # Email subject
-          IMAGES='${{ needs.build.outputs.built_images }}'
-          echo "debug = $IMAGES"
+          # IMAGES='${{ needs.build.outputs.built_images }}'
+          # echo "debug = $IMAGES"
           # FIRST_IMAGE=$(echo "$IMAGES" | jq -r '.[0]')
           # echo "debug = $FIRST_IMAGE"
           BODY_TEXT: | # Email body content
