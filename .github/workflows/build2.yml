@@ -131,6 +131,7 @@ jobs:
         run: |
           IMAGES='${{ needs.build.outputs.built_images }}'
           FIRST_IMAGE=$(echo "$IMAGES" | jq -r '.[0]')
+          ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('''$IMAGE'''))")
           REPO="${{ github.repository }}"
           WORKFLOW="approvesign.yml"
           COUNT=$(echo "$IMAGES" | jq 'length')
@@ -163,7 +164,7 @@ jobs:
             ${{ needs.build.outputs.built_images }}
             
             To approve and sign the image, please visit:
-            https://github.com/${{ github.repository }}/actions/workflows/approvesign.yml/dispatches?ref=main&inputs[image_uri]=${{ steps.first_image.outputs.first_image }}
+            https://github.com/${{ github.repository }}/actions/workflows/approvesign.yml/dispatches?ref=main&inputs[image_uri]=${{ steps.encode.outputs.encoded_image_uri }}
             Click "Run Workflow" and enter the image URI.
             Best regards,
             GitHub Actions Bot
