@@ -152,13 +152,17 @@ jobs:
           TO_EMAILS: "mailtosiva369@gmail.com,sivaprasad3697@gmail.com"
           FROM_EMAIL: mailtosiva369@gmail.com # Verified sender email
           SUBJECT: GitHub Actions Workflow Notification # Email subject
+          IMAGES='${{ needs.build.outputs.built_images }}'
+          echo "debug = $IMAGES"
+          FIRST_IMAGE=$(echo "$IMAGES" | jq -r '.[0]')
+          echo "debug = $FIRST_IMAGE"
           BODY_TEXT: | # Email body content
             Hello,
             The following Docker images have been built and are awaiting your approval:
             ${{ needs.build.outputs.built_images }}
             
             To approve and sign the image, please visit:
-            https://github.com/${{ github.repository }}/actions/workflows/approvesign.yml
+            https://github.com/${{ github.repository }}/actions/workflows/approvesign.yml/dispatches?ref=main&inputs[image_uri]=${{ steps.first_image.outputs.first_image }}
             Click "Run Workflow" and enter the image URI.
             Best regards,
             GitHub Actions Bot
