@@ -130,6 +130,7 @@ jobs:
         id: links
         run: |
           IMAGES='${{ needs.build.outputs.built_images }}'
+          FIRST_IMAGE=$(echo "$IMAGES" | jq -r '.[0]')
           REPO="${{ github.repository }}"
           WORKFLOW="approvesign.yml"
           COUNT=$(echo "$IMAGES" | jq 'length')
