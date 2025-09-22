@@ -154,8 +154,8 @@ jobs:
           SUBJECT: GitHub Actions Workflow Notification # Email subject
           IMAGES='${{ needs.build.outputs.built_images }}'
           echo "debug = $IMAGES"
-          FIRST_IMAGE=$(echo "$IMAGES" | jq -r '.[0]')
-          echo "debug = $FIRST_IMAGE"
+          # FIRST_IMAGE=$(echo "$IMAGES" | jq -r '.[0]')
+          # echo "debug = $FIRST_IMAGE"
           BODY_TEXT: | # Email body content
             Hello,
             The following Docker images have been built and are awaiting your approval:
