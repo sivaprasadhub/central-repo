@@ -144,35 +144,33 @@ jobs:
 
           if [ "$LINKS" = "NO_IMAGES" ]; then
             BODY_TEXT=$(cat <<EOF
-Hello,
-
-No new Docker images were built requiring approval.
-
-Best regards,
-GitHub Actions Bot
-EOF
-)
+            Hello,
+            No new Docker images were built requiring approval.
+            Best regards,
+            GitHub Actions Bot
+           EOF
+           )
           else
             BODY_TEXT=$(cat <<EOF
-Hello,
+            Hello,
 
-The following Docker images have been built and are awaiting your approval:
-EOF
-)
+            The following Docker images have been built and are awaiting your approval:
+            EOF
+            )
 
             I=1
             while IFS= read -r LINE; do
               BODY_TEXT="${BODY_TEXT}
-[$I] $LINE"
+              [$I] $LINE"
               ((I++))
             done <<< "$LINKS"
 
             BODY_TEXT="${BODY_TEXT}
 
-Please click the links above to approve and sign each image.
+            Please click the links above to approve and sign each image.
 
-Best regards,
-GitHub Actions Bot"
+           Best regards,
+           GitHub Actions Bot"
           fi
 
           TO_RECIPIENTS_JSON=$(echo "$TO_EMAILS" | tr ',' '\n' | sed 's/^[[:space:]]//;s/[[:space:]]$//' | awk '{printf "{\"email\":\"%s\"},", $0}' | sed 's/,$//' | awk '{print "[" $0 "]"}' )
