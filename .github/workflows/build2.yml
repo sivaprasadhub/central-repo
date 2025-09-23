@@ -145,73 +145,65 @@ jobs:
             echo "$LINKS" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           fi
-  
 
       - name: Send email via SendGrid API
         env:
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }} # Your SendGrid API key
-          # --- MODIFIED: Define multiple recipients as a comma-separated string ---
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
           TO_EMAILS: "mailtosiva369@gmail.com,sivaprasad3697@gmail.com"
-          FROM_EMAIL: mailtosiva369@gmail.com # Verified sender email
-          SUBJECT: GitHub Actions Workflow Notification # Email subject
-          # IMAGES='${{ needs.build.outputs.built_images }}'
-          # echo "debug = $IMAGES"
-          # FIRST_IMAGE=$(echo "$IMAGES" | jq -r '.[0]')
-          # echo "debug = $FIRST_IMAGE"
-          BODY_TEXT: | # Email body content
-            Hello,
-            The following Docker images have been built and are awaiting your approval:
-            ${{ needs.build.outputs.built_images }}
-            
-            To approve and sign the image, please visit:
-            https://github.com/${{ github.repository }}/actions/workflows/approvesign.yml/dispatches?ref=main&inputs[image_uri]=${{ steps.encode.outputs.encoded_image_uri }}
-            Click "Run Workflow" and enter the image URI.
-            Best regards,
-            GitHub Actions Bot
+          FROM_EMAIL: mailtosiva369@gmail.com
+          SUBJECT: GitHub Actions Workflow Notification
         run: |
-          # --- MODIFIED: Construct JSON payload for SendGrid API with multiple recipients ---
-          # Split the comma-separated TO_EMAILS string into a JSON array of objects
-          # Example: "email1@example.com,email2@example.com" -> [{"email":"email1@example.com"},{"email":"email2@example.com"}]
-          TO_RECIPIENTS_JSON=$(echo "$TO_EMAILS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk '{printf "{\"email\":\"%s\"},", $0}' | sed 's/,$//' | awk '{print "[" $0 "]"}' )
+          # Get links from previous step output
+          LINKS="${{ steps.links.outputs.links }}"
+          
+          if [ "$LINKS" = "NO_IMAGES" ]; then
+            BODY_TEXT="Hello,\n\nNo new Docker images were built requiring approval.\n\nBest regards,\nGitHub Actions Bot"
+          else
+            # Prepare a numbered list of clickable approval links
+            BODY_TEXT="Hello,\n\nThe following Docker images have been built and are awaiting your approval:\n\n"
+            I=1
+            while IFS= read -r LINE; do
+              BODY_TEXT+="[$I] $LINE\n"
+              ((I++))
+            done <<< "$LINKS"
+            BODY_TEXT+="\nPlease click the links above to approve and sign each image.\n\nBest regards,\nGitHub Actions Bot"
+          fi
+
+          # Convert comma-separated emails to JSON array
+          TO_RECIPIENTS_JSON=$(echo "$TO_EMAILS" | tr ',' '\n' | sed 's/^[[:space:]]//;s/[[:space:]]$//' | awk '{printf "{\"email\":\"%s\"},", $0}' | sed 's/,$//' | awk '{print "[" $0 "]"}' )
+          
+          # Build JSON payload
           JSON_PAYLOAD=$(jq -n \
             --argjson to_recipients "$TO_RECIPIENTS_JSON" \
             --arg from_email "$FROM_EMAIL" \
             --arg subject "$SUBJECT" \
             --arg body_text "$BODY_TEXT" \
             '{
-              personalizations: [
-                {
-                  to: $to_recipients
-                }
-              ],
-              from: {
-                email: $from_email
-              },
+              personalizations: [{ to: $to_recipients }],
+              from: { email: $from_email },
               subject: $subject,
-              content: [
-                {
-                  type: "text/plain",
-                  value: $body_text
-                }
-              ]
+              content: [{ type: "text/plain", value: $body_text }]
             }')
-          echo "Sending email to $TO_EMAILS from $FROM_EMAIL with subject: $SUBJECT"
-          # Send email using curl to SendGrid API
+
+          echo "Sending email to $TO_EMAILS"
           CURL_RESPONSE=$(curl -s -X POST \
             https://api.sendgrid.com/v3/mail/send \
             -H "Authorization: Bearer $SENDGRID_API_KEY" \
             -H "Content-Type: application/json" \
             -d "$JSON_PAYLOAD" \
             -w "\nHTTP_STATUS:%{http_code}")
-          # Extract HTTP status and response body
-          HTTP_STATUS=$(echo "$CURL_RESPONSE" | sed -n 's/.*HTTP_STATUS:\([0-9]*\)/\1/p')
+
+          HTTP_STATUS=$(echo "$CURL_RESPONSE" | sed -n 's/.HTTP_STATUS:\([0-9]\)/\1/p')
           RESPONSE_BODY=$(echo "$CURL_RESPONSE" | sed 's/HTTP_STATUS:[0-9]*//')
+
           echo "SendGrid API Response (HTTP Status: $HTTP_STATUS):"
           echo "$RESPONSE_BODY"
-          # Check for successful HTTP status (2xx)
+
           if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
             echo "Email sent successfully! HTTP Status: $HTTP_STATUS"
           else
             echo "Error sending email. HTTP Status: $HTTP_STATUS"
-            exit 1 # Fail the step on error
-          fi 
+            exit 1
+          fi
+
+      
