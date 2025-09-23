@@ -155,7 +155,7 @@ jobs:
               ((I++))
             done < "$LINKS_FILE" # Read from file instead of variable
 
-            BODY_TEXT="${BODY_TEXT}\n\nPlease click the links above to approve and sign each image.\n\nBest regards,\nGitHub Actions Bot"
+            
           fi
 
           TO_RECIPIENTS_JSON=$(echo "$TO_EMAILS" | tr ',' '\n' | sed 's/^[[:space:]]//;s/[[:space:]]$//' | awk '{printf "{\"email\":\"%s\"},", $0}' | sed 's/,$//' | awk '{print "[" $0 "]"}' )
