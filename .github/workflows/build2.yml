@@ -125,34 +125,35 @@ jobs:
           if [ "$COUNT" -eq 0 ]; then
             echo "links=NO_IMAGES" >> $GITHUB_OUTPUT
           else
-            LINKS=$(echo "$IMAGES" | jq -r --arg repo "$REPO" --arg wf "$WORKFLOW" '
-              .[] | "https://github.com/\($repo)/actions/workflows/\($wf)/dispatches?ref=main&inputs[image_uri]=\(.)"'
-            )
-            echo "links<<EOF" >> $GITHUB_OUTPUT
-            echo "$LINKS" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+            # Generate each link on a separate line, ensuring no extra newlines are added by jq
+            echo "$IMAGES" | jq -r --arg repo "$REPO" --arg wf "$WORKFLOW" '
+              .[] | "https://github.com/\($repo)/actions/workflows/\($wf)/dispatches?ref=main&inputs%5Bimage_uri%5D=\(.)"' > /tmp/approval_links.txt
+            echo "links_file=/tmp/approval_links.txt" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Send email via SendGrid API
         env:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
           TO_EMAILS: "mailtosiva369@gmail.com,sivaprasad3697@gmail.com"
-          FROM_EMAIL: mailtosiva369@gmail.com # Corrected email address
+          FROM_EMAIL: mailtosiva369@gmail.com
           SUBJECT: GitHub Actions Workflow Notification
         run: |
-          LINKS="${{ steps.links.outputs.links }}"
+          LINKS_FILE="${{ steps.links.outputs.links_file }}"
           BODY_TEXT="" # Initialize BODY_TEXT
 
-          if [ "$LINKS" = "NO_IMAGES" ]; then
+          if [ "$LINKS_FILE" = "NO_IMAGES" ]; then
             BODY_TEXT=$(printf "Hello,\n\nNo new Docker images were built requiring approval.\n\nBest regards,\nGitHub Actions Bot\n")
           else
             BODY_TEXT=$(printf "Hello,\n\nThe following Docker images have been built and are awaiting your approval:\n")
 
             I=1
+            # Read links from the file, one by one
             while IFS= read -r LINE; do
-              BODY_TEXT="${BODY_TEXT}\n[$I] $LINE"
+              # Trim any potential trailing whitespace/newlines from LINE
+              CLEAN_LINE=$(echo "$LINE" | tr -d '\n\r' | sed 's/[[:space:]]*$//')
+              BODY_TEXT="${BODY_TEXT}\n[$I] $CLEAN_LINE"
               ((I++))
-            done <<< "$LINKS"
+            done < "$LINKS_FILE" # Read from file instead of variable
 
             BODY_TEXT="${BODY_TEXT}\n\nPlease click the links above to approve and sign each image.\n\nBest regards,\nGitHub Actions Bot"
           fi
