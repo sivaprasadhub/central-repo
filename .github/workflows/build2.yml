@@ -150,7 +150,7 @@ jobs:
             while IFS= read -r LINE; do
               BODY_TEXT+="[$I] $LINE\n"
               ((I++))
-            done <<< "$LINKS"
+            done <<< "$LINKS\n"
             BODY_TEXT+="\nPlease click the links above to approve and sign each image.\n\nBest regards,\nGitHub Actions Bot"
           fi
 
