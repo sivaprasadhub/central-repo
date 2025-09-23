@@ -137,40 +137,24 @@ jobs:
         env:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
           TO_EMAILS: "mailtosiva369@gmail.com,sivaprasad3697@gmail.com"
-          FROM_EMAIL: mailtosiva369@gmail.com
+          FROM_EMAIL: mailtosiva369@gmail.com # Corrected email address
           SUBJECT: GitHub Actions Workflow Notification
         run: |
           LINKS="${{ steps.links.outputs.links }}"
+          BODY_TEXT="" # Initialize BODY_TEXT
 
           if [ "$LINKS" = "NO_IMAGES" ]; then
-            BODY_TEXT=$(cat <<EOF
-Hello,
-No new Docker images were built requiring approval.
-Best regards,
-GitHub Actions Bot
-EOF
-)
+            BODY_TEXT=$(printf "Hello,\n\nNo new Docker images were built requiring approval.\n\nBest regards,\nGitHub Actions Bot\n")
           else
-            BODY_TEXT=$(cat <<EOF
-Hello,
-
-The following Docker images have been built and are awaiting your approval:
-EOF
-)
+            BODY_TEXT=$(printf "Hello,\n\nThe following Docker images have been built and are awaiting your approval:\n")
 
             I=1
             while IFS= read -r LINE; do
-              BODY_TEXT="${BODY_TEXT}
-[$I] $LINE"
+              BODY_TEXT="${BODY_TEXT}\n[$I] $LINE"
               ((I++))
             done <<< "$LINKS"
 
-            BODY_TEXT="${BODY_TEXT}
-
-Please click the links above to approve and sign each image.
-
-Best regards,
-GitHub Actions Bot"
+            BODY_TEXT="${BODY_TEXT}\n\nPlease click the links above to approve and sign each image.\n\nBest regards,\nGitHub Actions Bot"
           fi
 
           TO_RECIPIENTS_JSON=$(echo "$TO_EMAILS" | tr ',' '\n' | sed 's/^[[:space:]]//;s/[[:space:]]$//' | awk '{printf "{\"email\":\"%s\"},", $0}' | sed 's/,$//' | awk '{print "[" $0 "]"}' )
