@@ -115,7 +115,7 @@ jobs:
         with:
           smtp-server: smtp.office365.com
           smtp-port: 587
-          smtp-secure: false
+          smtp-secure: true
           from-email: sivaprasadburugupalli@hotmail.com
           to-email: mailtosiva369@gmail.com
           username: sivaprasadburugupalli@hotmail.com
