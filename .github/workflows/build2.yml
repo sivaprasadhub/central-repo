@@ -114,8 +114,8 @@ jobs:
         uses: hilarion5/send-mail@v1
         with:
           smtp-server: "smtp.gmail.com"
-          smtp-port: 587
-          smtp-secure: false
+          smtp-port: 465      #587
+          smtp-secure: true   #false
           from-email: mailtosiva369@gmail.com
           to-email: mailtosiva369@gmail.com
           username: mailtosiva369@gmail.com
