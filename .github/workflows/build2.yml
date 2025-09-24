@@ -113,12 +113,12 @@ jobs:
       - name: Send Email
         uses: hilarion5/send-mail@v1
         with:
-          smtp-server: smtp.office365.com
+          smtp-server: "smtp.gmail.com"
           smtp-port: 587
           smtp-secure: true
-          from-email: sivaprasadburugupalli@hotmail.com
+          from-email: mailtosiva369@gmail.com
           to-email: mailtosiva369@gmail.com
-          username: sivaprasadburugupalli@hotmail.com
+          username: mailtosiva369@gmail.com
           password: ${{ secrets.OUTLOOK_APP_PWD }}
           subject: Test Email
           body: This is a test email sent from GitHub Actions.
