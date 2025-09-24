@@ -110,75 +110,18 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Generate dynamic approval links
-        id: links
-        run: |
-          IMAGES='${{ needs.build.outputs.built_images }}'
-          REPO="${{ github.repository }}"
-          WORKFLOW="approvesign.yml"
-          COUNT=$(echo "$IMAGES" | jq 'length')
-          if [ "$COUNT" -eq 0 ]; then
-            echo "links=NO_IMAGES" >> $GITHUB_OUTPUT
-          else
-            LINKS=$(echo "$IMAGES" | jq -r --arg repo "$REPO" --arg wf "$WORKFLOW" '
-              .[] | "https://github.com/\($repo)/actions/workflows/\($wf)/dispatches?ref=main&inputs[image_uri]=\(.)"'
-            )
-            echo "links<<EOF" >> $GITHUB_OUTPUT
-            echo "$LINKS" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          fi
-      - name: Send email via SendGrid API
-        env:
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
-          TO_EMAILS: "mailtosiva369@gmail.com,sivaprasad3697@gmail.com"
-          FROM_EMAIL: mailtosiva369@gmail.com # Corrected email address
-          SUBJECT: GitHub Actions Workflow Notification
-        run: |
-          LINKS="${{ steps.links.outputs.links }}"
-          BODY_TEXT="" # Initialize BODY_TEXT
-          if [ "$LINKS" = "NO_IMAGES" ]; then
-            BODY_TEXT=$(printf "Hello,\n\nNo new Docker images were built requiring approval.\n\nBest regards,\nGitHub Actions Bot\n")
-          else
-            BODY_TEXT=$(printf "Hello,\n\nThe following Docker images have been built and are awaiting your approval:\n")
-            I=1
-            while IFS= read -r LINE; do
-              BODY_TEXT="${BODY_TEXT}\n[$I] $LINE"
-              ((I++))
-            done <<< "$LINKS"
-            BODY_TEXT="${BODY_TEXT}"
-          fi
-          TO_RECIPIENTS_JSON=$(echo "$TO_EMAILS" | tr ',' '\n' | sed 's/^[[:space:]]//;s/[[:space:]]$//' | awk '{printf "{\"email\":\"%s\"},", $0}' | sed 's/,$//' | awk '{print "[" $0 "]"}' )
-          JSON_PAYLOAD=$(jq -n \
-            --argjson to_recipients "$TO_RECIPIENTS_JSON" \
-            --arg from_email "$FROM_EMAIL" \
-            --arg subject "$SUBJECT" \
-            --arg body_text "$BODY_TEXT" \
-            '{
-              personalizations: [{ to: $to_recipients }],
-              from: { email: $from_email },
-              subject: $subject,
-              content: [{ type: "text/plain", value: $body_text }]
-            }')
-          echo "Sending email to $TO_EMAILS"
-          HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
-            -X POST https://api.sendgrid.com/v3/mail/send \
-            -H "Authorization: Bearer $SENDGRID_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "$JSON_PAYLOAD")
-          HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
-          HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
-          echo "SendGrid API Response:"
-          echo "Status: $HTTP_STATUS"
-          echo "Body:"
-          echo "$HTTP_BODY"
-          if [[ "$HTTP_STATUS" =~ ^[0-9]+$ ]]; then
-            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
-              echo "✅ Email sent successfully! HTTP Status: $HTTP_STATUS"
-            else
-              echo "❌ Error sending email. HTTP Status: $HTTP_STATUS"
-              exit 1
-            fi
-          else
-            echo "❌ Invalid HTTP status code received: '$HTTP_STATUS'"
-            exit 1
-          fi
+      - name: Send Email
+        uses: hilarion5/send-mail@v1
+        with:
+          smtp-server: smtp.office365.com
+          smtp-port: 587
+          smtp-secure: false
+          from-email: sivaprasadburugupalli@hotmail.com
+          to-email: mailtosiva369@gmail.com
+          username: sivaprasadburugupalli@hotmail.com
+          password: ${{ secrets.OUTLOOK_APP_PWD }}
+          subject: Test Email
+          body: This is a test email sent from GitHub Actions.
+          html: |
+            <h1>This is a test email</h1>
+            <p>Test Paragraph</p>
