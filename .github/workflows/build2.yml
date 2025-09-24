@@ -115,7 +115,7 @@ jobs:
         with:
           smtp-server: "smtp.gmail.com"
           smtp-port: 587
-          smtp-secure: true
+          smtp-secure: false
           from-email: mailtosiva369@gmail.com
           to-email: mailtosiva369@gmail.com
           username: mailtosiva369@gmail.com
