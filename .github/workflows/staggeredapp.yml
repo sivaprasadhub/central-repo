@@ -2,7 +2,7 @@ name: Build, Scan, Approvals, Sign
 
 on:
   repository_dispatch:
-    types: [app-code-change]
+    types: [app-code-changee]
 
 env:
   WORKLOAD_IDENTITY_PROVIDER: 'projects/954176678706/locations/global/workloadIdentityPools/github-demo-pool/providers/github'
