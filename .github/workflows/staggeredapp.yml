@@ -133,7 +133,7 @@ jobs:
   security_approval:
     needs: send_email_security
     runs-on: ubuntu-latest
-    environment: security_approval
+    environment: security
     steps:
       - name: Security Approval
         run: echo "Security approved images: ${{ needs.build_and_push.outputs.built_images }}"
@@ -141,7 +141,7 @@ jobs:
   infra_approval_and_sign:
     needs: security_approval
     runs-on: ubuntu-latest
-    environment: infra_approval
+    environment: infra
     steps:
       - name: Infra Approval Step
         run: echo "Infra approves to sign images."
