@@ -5,7 +5,7 @@ name: Build ➜ Notify
 
 on:
   repository_dispatch:
-    types: [app-code-change]
+    #types: [app-code-change]
 
 ###############################################################################
 # Global environment variables
