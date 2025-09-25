@@ -1,4 +1,4 @@
-name: Build → Scan → Approvals → Sign
+name: Build, Scan, Approvals, Sign
 
 on:
   repository_dispatch:
@@ -7,7 +7,6 @@ on:
 env:
   WORKLOAD_IDENTITY_PROVIDER: 'projects/954176678706/locations/global/workloadIdentityPools/github-demo-pool/providers/github'
   SERVICE_ACCOUNT: 'github-action-wif@sivaprasad-426906.iam.gserviceaccount.com'
-
   QUAR_IMAGE_REGISTRY: us-central1-docker.pkg.dev/sivaprasad-426906/cloud-run-source-deploy
   GAR_LOCATION: us-central1
   PROJECT_ID: sivaprasad-426906
@@ -16,7 +15,9 @@ env:
 jobs:
   build_and_push:
     runs-on: ubuntu-latest
-    permissions: { contents: read, id-token: write }
+    permissions: 
+      contents: read
+      id-token: write
     outputs:
       built_images: ${{ steps.collect.outputs.images_json }}
       repo_name: ${{ steps.clone_repo.outputs.REPO_NAME }}
@@ -51,7 +52,7 @@ jobs:
           token: ${{ github.token }}
           path: ${{ steps.clone_repo.outputs.REPO_NAME }}
           base_sha: ${{ steps.base.outputs.sha }}
-          sha:      ${{ github.event.client_payload.sha }}
+          sha: ${{ github.event.client_payload.sha }}
           use_rest_api: false
           files: |
             **/Dockerfile*
@@ -59,7 +60,7 @@ jobs:
       - uses: google-github-actions/auth@v1
         with:
           workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account:            ${{ env.SERVICE_ACCOUNT }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
 
       - uses: docker/setup-buildx-action@v2
 
@@ -133,7 +134,7 @@ jobs:
   security_approval:
     needs: send_email_security
     runs-on: ubuntu-latest
-    #environment: security
+    environment: security
     steps:
       - name: Security Approval
         run: echo "Security approved images: ${{ needs.build_and_push.outputs.built_images }}"
@@ -141,7 +142,7 @@ jobs:
   infra_approval_and_sign:
     needs: security_approval
     runs-on: ubuntu-latest
-    #environment: infra
+    environment: infra
     steps:
       - name: Infra Approval Step
         run: echo "Infra approves to sign images."
