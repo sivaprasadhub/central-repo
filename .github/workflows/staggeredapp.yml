@@ -225,11 +225,75 @@ jobs:
       - name: security_approval
         run: echo "Security approved images #: ${{ needs.build_and_push.outputs.built_images }}"
 
+
 ###############################################################################
-# Job 4: Infrastructure Approval and Image Signing (Manual Approval)
+# Job 4: Notify Infra Team via Email
+###############################################################################
+  send_email_infra:
+    needs: security_approval # This job runs after security approval
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Send Email to Infra Team via SendGrid API
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          TO_EMAILS: "mailtosiva369@gmail.com,sivaprasad3697@gmail.com" # <--- CHANGE THIS TO YOUR INFRA TEAM EMAILS
+          FROM_EMAIL: mailtosiva369@gmail.com
+          SUBJECT: "Docker Images Awaiting Infrastructure Approval and Signing"
+          BODY_TEXT: |
+            Hello Infra Team,
+
+            The following Docker images have been approved by Security and are now awaiting your review for signing:
+            ${{ needs.build_and_push.outputs.built_images }}
+
+            Approve this run here:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Best regards,
+            GitHub Actions Bot
+        run: |
+          TO_RECIPIENTS_JSON=$(echo "$TO_EMAILS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk '{printf "{\"email\":\"%s\"},", $0}' | sed 's/,$//' | awk '{print "[" $0 "]"}')
+          JSON_PAYLOAD=$(jq -n \
+            --argjson to_recipients "$TO_RECIPIENTS_JSON" \
+            --arg from_email "$FROM_EMAIL" \
+            --arg subject "$SUBJECT" \
+            --arg body_text "$BODY_TEXT" \
+            '{
+              personalizations: [{to: $to_recipients}],
+              from: {email: $from_email},
+              subject: $subject,
+              content: [{type: "text/plain", value: $body_text}]
+            }')
+
+          echo "Sending email to $TO_EMAILS from $FROM_EMAIL with subject: $SUBJECT"
+
+          CURL_RESPONSE=$(curl -s -X POST \
+            https://api.sendgrid.com/v3/mail/send \
+            -H "Authorization: Bearer $SENDGRID_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$JSON_PAYLOAD" \
+            -w "\nHTTP_STATUS:%{http_code}")
+
+          HTTP_STATUS=$(echo "$CURL_RESPONSE" | sed -n 's/.*HTTP_STATUS:\([0-9]*\)/\1/p')
+          RESPONSE_BODY=$(echo "$CURL_RESPONSE" | sed 's/HTTP_STATUS:[0-9]*//')
+
+          echo "SendGrid API Response (HTTP Status: $HTTP_STATUS):"
+          echo "$RESPONSE_BODY"
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "Email sent successfully! HTTP Status: $HTTP_STATUS"
+          else
+            echo "Error sending email. HTTP Status: $HTTP_STATUS"
+            exit 1
+          fi
+
+###############################################################################
+# Job 5: Infrastructure Approval and Image Signing (Manual Approval)
 ###############################################################################
   infra_approval_and_sign:
-    needs: security_approval # This job depends on the security approval
+    needs: send_email_infra # This job depends on the infra email notification
     runs-on: ubuntu-latest
     environment: infra # Requires a GitHub Environment named 'infra' with reviewers configured
     steps:
@@ -238,7 +302,7 @@ jobs:
 
       - name: Sign Docker Images
         run: |
-          IMAGES ="${{ needs.build_and_push.outputs.built_images }}"
+          IMAGES="${{ needs.build_and_push.outputs.built_images }}"
           echo "Signing images: $IMAGES"
           # TODO: Implement your actual image signing logic here (e.g., using cosign)
           # Example placeholder for cosign:
