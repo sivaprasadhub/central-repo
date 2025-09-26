@@ -222,7 +222,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: security # Requires a GitHub Environment named 'security' with reviewers configured
     steps:
-      - name: Security Approval step
+      - name: security_approval
         run: echo "Security approved images: ${{ needs.build_and_push.outputs.built_images }}"
 
 # ###############################################################################
