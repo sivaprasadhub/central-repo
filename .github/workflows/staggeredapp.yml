@@ -139,74 +139,74 @@ jobs:
             echo "images_json=[]" >> "$GITHUB_OUTPUT" # Output an empty JSON array if no images were built
           fi
 
-# ###############################################################################
-# # Job 2: Notify Security Team via Email
-# ###############################################################################
-#   send_email_security:
-#     needs: build_and_push # This job depends on the build_and_push job completing successfully
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Install jq
-#         run: sudo apt-get update && sudo apt-get install -y jq # Install JSON processor for email payload
+###############################################################################
+# Job 2: Notify Security Team via Email
+###############################################################################
+  send_email_security:
+    needs: build_and_push # This job depends on the build_and_push job completing successfully
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq # Install JSON processor for email payload
 
-#       - name: Send Email via SendGrid API
-#         env:
-#           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
-#           TO_EMAILS: "mailtosiva369@gmail.com,sivaprasad3697@gmail.com" # Comma-separated recipients
-#           FROM_EMAIL: mailtosiva369@gmail.com
-#           SUBJECT: "Docker Images Awaiting Security Approval"
-#           BODY_TEXT: | # Multi-line email body
-#             Hello Security Team,
+      - name: Send Email via SendGrid API
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          TO_EMAILS: "mailtosiva369@gmail.com,sivaprasad3697@gmail.com" # Comma-separated recipients
+          FROM_EMAIL: mailtosiva369@gmail.com
+          SUBJECT: "Docker Images Awaiting Security Approval"
+          BODY_TEXT: | # Multi-line email body
+            Hello Security Team,
 
-#             The following Docker images have been built and are awaiting your review:
-#             ${{ needs.build_and_push.outputs.built_images }}
+            The following Docker images have been built and are awaiting your review:
+            ${{ needs.build_and_push.outputs.built_images }}
 
-#             Approve this run here:
-#             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Approve this run here:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-#             Best regards,
-#             GitHub Actions Bot
-#         run: |
-#           # Construct JSON array of recipient objects from comma-separated string
-#           TO_RECIPIENTS_JSON=$(echo "$TO_EMAILS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk '{printf "{\"email\":\"%s\"},", $0}' | sed 's/,$//' | awk '{print "[" $0 "]"}')
+            Best regards,
+            GitHub Actions Bot
+        run: |
+          # Construct JSON array of recipient objects from comma-separated string
+          TO_RECIPIENTS_JSON=$(echo "$TO_EMAILS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk '{printf "{\"email\":\"%s\"},", $0}' | sed 's/,$//' | awk '{print "[" $0 "]"}')
 
-#           # Construct the full SendGrid API JSON payload
-#           JSON_PAYLOAD=$(jq -n \
-#             --argjson to_recipients "$TO_RECIPIENTS_JSON" \
-#             --arg from_email "$FROM_EMAIL" \
-#             --arg subject "$SUBJECT" \
-#             --arg body_text "$BODY_TEXT" \
-#             '{
-#               personalizations: [{to: $to_recipients}],
-#               from: {email: $from_email},
-#               subject: $subject,
-#               content: [{type: "text/plain", value: $body_text}]
-#             }')
+          # Construct the full SendGrid API JSON payload
+          JSON_PAYLOAD=$(jq -n \
+            --argjson to_recipients "$TO_RECIPIENTS_JSON" \
+            --arg from_email "$FROM_EMAIL" \
+            --arg subject "$SUBJECT" \
+            --arg body_text "$BODY_TEXT" \
+            '{
+              personalizations: [{to: $to_recipients}],
+              from: {email: $from_email},
+              subject: $subject,
+              content: [{type: "text/plain", value: $body_text}]
+            }')
 
-#           echo "Sending email to $TO_EMAILS from $FROM_EMAIL with subject: $SUBJECT"
+          echo "Sending email to $TO_EMAILS from $FROM_EMAIL with subject: $SUBJECT"
 
-#           # Send email using curl and capture response for error checking
-#           CURL_RESPONSE=$(curl -s -X POST \
-#             https://api.sendgrid.com/v3/mail/send \
-#             -H "Authorization: Bearer $SENDGRID_API_KEY" \
-#             -H "Content-Type: application/json" \
-#             -d "$JSON_PAYLOAD" \
-#             -w "\nHTTP_STATUS:%{http_code}") # Capture HTTP status code
+          # Send email using curl and capture response for error checking
+          CURL_RESPONSE=$(curl -s -X POST \
+            https://api.sendgrid.com/v3/mail/send \
+            -H "Authorization: Bearer $SENDGRID_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$JSON_PAYLOAD" \
+            -w "\nHTTP_STATUS:%{http_code}") # Capture HTTP status code
 
-#           # Extract HTTP status and response body
-#           HTTP_STATUS=$(echo "$CURL_RESPONSE" | sed -n 's/.*HTTP_STATUS:\([0-9]*\)/\1/p')
-#           RESPONSE_BODY=$(echo "$CURL_RESPONSE" | sed 's/HTTP_STATUS:[0-9]*//')
+          # Extract HTTP status and response body
+          HTTP_STATUS=$(echo "$CURL_RESPONSE" | sed -n 's/.*HTTP_STATUS:\([0-9]*\)/\1/p')
+          RESPONSE_BODY=$(echo "$CURL_RESPONSE" | sed 's/HTTP_STATUS:[0-9]*//')
 
-#           echo "SendGrid API Response (HTTP Status: $HTTP_STATUS):"
-#           echo "$RESPONSE_BODY"
+          echo "SendGrid API Response (HTTP Status: $HTTP_STATUS):"
+          echo "$RESPONSE_BODY"
 
-#           # Check for successful HTTP status (2xx range)
-#           if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
-#             echo "Email sent successfully! HTTP Status: $HTTP_STATUS"
-#           else
-#             echo "Error sending email. HTTP Status: $HTTP_STATUS"
-#             exit 1 # Fail the step if email sending was not successful
-#           fi
+          # Check for successful HTTP status (2xx range)
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "Email sent successfully! HTTP Status: $HTTP_STATUS"
+          else
+            echo "Error sending email. HTTP Status: $HTTP_STATUS"
+            exit 1 # Fail the step if email sending was not successful
+          fi
 
 # ###############################################################################
 # # Job 3: Security Approval (Manual Approval)
