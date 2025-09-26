@@ -4,6 +4,12 @@ on:
   repository_dispatch:
     types: [app-code-change] # Must match the event-type sent from the triggering repo
 
+
+permissions:
+  contents: read
+  id-token: write # Required for Google Cloud authentication
+  deployments: write     
+
 ###############################################################################
 # Global environment variables
 ###############################################################################
