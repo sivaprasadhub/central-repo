@@ -214,36 +214,36 @@ jobs:
             exit 1 # Fail the step if email sending was not successful
           fi
 
-###############################################################################
-# Job 3: Security Approval (Manual Approval)
-###############################################################################
-  security_approval:
-    needs: send_email_security # This job depends on the email notification
-    runs-on: ubuntu-latest
-    environment: security # Requires a GitHub Environment named 'security' with reviewers configured
-    steps:
-      - name: security_approval
-        run: echo "Security approved images: ${{ needs.build_and_push.outputs.built_images }}"
-
 # ###############################################################################
-# # Job 4: Infrastructure Approval and Image Signing (Manual Approval)
+# # Job 3: Security Approval (Manual Approval)
 # ###############################################################################
-#   infra_approval_and_sign:
-#     needs: security_approval # This job depends on the security approval
+#   security_approval:
+#     needs: send_email_security # This job depends on the email notification
 #     runs-on: ubuntu-latest
-#     environment: infra # Requires a GitHub Environment named 'infra' with reviewers configured
+#     environment: security # Requires a GitHub Environment named 'security' with reviewers configured
 #     steps:
-#       - name: Infra Approval Step
-#         run: echo "Infra approves to sign images."
+#       - name: security_approval
+#         run: echo "Security approved images: ${{ needs.build_and_push.outputs.built_images }}"
 
-#       - name: Sign Docker Images
-#         run: |
-#           IMAGES="${{ needs.build_and_push.outputs.built_images }}"
-#           echo "Signing images: $IMAGES"
-#           # TODO: Implement your actual image signing logic here (e.g., using cosign)
-#           # Example placeholder for cosign:
-#           # for IMAGE in $(echo "$IMAGES" | jq -r '.[]'); do
-#           #   echo "Attempting to sign: $IMAGE"
-#           #   # cosign sign --yes "$IMAGE" # Replace with your actual signing command
-#           # done
-#           echo "Image signing process completed (placeholder)."
+###############################################################################
+# Job 4: Infrastructure Approval and Image Signing (Manual Approval)
+###############################################################################
+  infra_approval_and_sign:
+    needs: security_approval # This job depends on the security approval
+    runs-on: ubuntu-latest
+    environment: infra # Requires a GitHub Environment named 'infra' with reviewers configured
+    steps:
+      - name: Infra Approval Step
+        run: echo "Infra approves to sign images."
+
+      - name: Sign Docker Images
+        run: |
+          IMAGES="${{ needs.build_and_push.outputs.built_images }}"
+          echo "Signing images: $IMAGES"
+          # TODO: Implement your actual image signing logic here (e.g., using cosign)
+          # Example placeholder for cosign:
+          # for IMAGE in $(echo "$IMAGES" | jq -r '.[]'); do
+          #   echo "Attempting to sign: $IMAGE"
+          #   # cosign sign --yes "$IMAGE" # Replace with your actual signing command
+          # done
+          echo "Image signing process completed (placeholder)."
