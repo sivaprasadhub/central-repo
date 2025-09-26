@@ -239,7 +239,7 @@ jobs:
       - name: Send Email to Infra Team via SendGrid API
         env:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
-          TO_EMAILS: "mailtosiva369@gmail.com,sivaprasad3697@gmail.com" # <--- CHANGE THIS TO YOUR INFRA TEAM EMAILS
+          TO_EMAILS: "mailtosiva369@gmail.com,sivaprasad3697@gmail.com" # <--- sends to INFRA TEAM EMAILS
           FROM_EMAIL: mailtosiva369@gmail.com
           SUBJECT: "Docker Images Awaiting Infrastructure Approval and Signing"
           BODY_TEXT: |
