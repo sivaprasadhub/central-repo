@@ -231,7 +231,8 @@ jobs:
 # Job 4: Notify Infra Team via Email
 ###############################################################################
   send_email_infra:
-    needs: security_approval # This job runs after security approval
+    #needs: security_approval # This job runs after security approval
+    needs: [security_approval, build_and_push]
     runs-on: ubuntu-latest
     steps:
       - name: Install jq
