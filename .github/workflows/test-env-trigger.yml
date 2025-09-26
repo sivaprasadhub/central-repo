@@ -1,0 +1,17 @@
+name: Test Environment Trigger
+
+on:
+  repository_dispatch:
+    types: [test-trigger] # Use a new, unique event type
+
+permissions:
+  contents: read
+  deployments: write # Essential for environments
+
+jobs:
+  test_job:
+    runs-on: ubuntu-latest
+    environment: security # Use your existing 'security' environment
+    steps:
+      - name: Test Environment Step
+        run: echo "Environment test job triggered successfully!"
