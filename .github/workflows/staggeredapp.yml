@@ -218,13 +218,12 @@ jobs:
 # Job 3: Security Approval (Manual Approval)
 ###############################################################################
   security_approval:
-    #needs: build_and_push # This job depends on the email notification
     needs: send_email_security
     runs-on: ubuntu-latest
     environment: security # Requires a GitHub Environment named 'security' with reviewers configured
     steps:
       - name: security_approval
-        run: echo "Security approved images : ${{ needs.build_and_push.outputs.built_images }}"
+        run: echo "Security approved images: ${{ needs.build_and_push.outputs.built_images }}"
 
 # ###############################################################################
 # # Job 4: Infrastructure Approval and Image Signing (Manual Approval)
