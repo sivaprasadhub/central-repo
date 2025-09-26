@@ -2,40 +2,51 @@ name: Build ➜ Approve ➜ Sign
 
 on:
   repository_dispatch:
-    types: [app-code-change]   # must match the event-type sent from app repo
+    types: [app-code-change]   # Must match the event-type sent from the triggering repo
 
+###############################################################################
+# Global environment variables
+###############################################################################
 env:
   WORKLOAD_IDENTITY_PROVIDER: 'projects/954176678706/locations/global/workloadIdentityPools/github-demo-pool/providers/github'
   SERVICE_ACCOUNT: 'github-action-wif@sivaprasad-426906.iam.gserviceaccount.com'
+
   QUAR_IMAGE_REGISTRY: us-central1-docker.pkg.dev/sivaprasad-426906/cloud-run-source-deploy
   GAR_LOCATION: us-central1
-  PROJECT_ID: sivaprasad-426906
-  LOCATION: us-central1
 
+  PROJECT_ID: sivaprasad-426906       # GCP project for API calls
+  LOCATION: us-central1                   # Container Analysis location
+
+###############################################################################
+# Job 1: Build and push changed Dockerfiles to the quarantine registry
+###############################################################################
 jobs:
   build_and_push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
+      id-token: write # Required for Google Cloud authentication
     outputs:
       built_images: ${{ steps.collect.outputs.images_json }}
       repo_name: ${{ steps.clone_repo.outputs.REPO_NAME }}
       commit_tag: ${{ github.event.client_payload.sha }}
 
     steps:
+      # Checkout orchestration repository (this workflow's repo)
       - uses: actions/checkout@v3
 
+      # Clone the application repository at the triggering SHA
       - id: clone_repo
         name: Clone application repository
         run: |
           REPO_FULL="${{ github.event.client_payload.repository }}"
-          REPO_NAME="${REPO_FULL#*/}"
+          REPO_NAME="${REPO_FULL#*/}" # Extracts repo name from owner/repo
           git clone https://x-access-token:${{ secrets.BUILDER_REPO_TOKEN }}@github.com/$REPO_FULL "$REPO_NAME"
           cd "$REPO_NAME"
           git checkout "${{ github.event.client_payload.sha }}"
           echo "REPO_NAME=$REPO_NAME" >> "$GITHUB_OUTPUT"
 
+      # Resolve base commit (empty tree on first run or if no previous commit)
       - id: base
         name: Resolve base commit
         run: |
@@ -43,9 +54,11 @@ jobs:
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
             echo "sha=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
           else
+            # Fallback to an empty tree SHA if no previous commit exists
             echo "sha=4b825dc642cb6eb9a060e54bf8d69288fbee4904" >> "$GITHUB_OUTPUT"
-          fi # <--- CORRECTED: Added the missing 'fi'
+          fi # <--- CRITICAL FIX: Added missing 'fi'
 
+      # Detect Dockerfiles that changed between base and current SHA
       - id: diff
         name: Detect changed Dockerfiles
         uses: tj-actions/changed-files@v46
@@ -58,59 +71,76 @@ jobs:
           files: |
             **/Dockerfile*
 
+      # Authenticate to Google Cloud using Workload Identity Federation
       - uses: google-github-actions/auth@v1
         with:
           workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ env.SERVICE_ACCOUNT }}
 
+      # Set up Docker Buildx for efficient image building
       - uses: docker/setup-buildx-action@v2
 
+      # Configure Docker to push to Google Artifact Registry
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev
 
+      # Build and push each changed Dockerfile to the quarantine registry
       - name: Build and push images
         run: |
-          set -e
+          set -e # Exit immediately if a command exits with a non-zero status
           REPO="${{ steps.clone_repo.outputs.REPO_NAME }}"
           SHA="${{ github.event.client_payload.sha }}"
           cd "$REPO"
-          > /tmp/built.txt
+          > /tmp/built.txt # Initialize an empty file to store built image URIs
+
+          # Loop through all changed files detected by tj-actions/changed-files
           for FILE in ${{ steps.diff.outputs.all_changed_files }}; do
+            # Only process files that contain "Dockerfile" in their name
             [[ "$FILE" != *Dockerfile* ]] && continue
-            DIR=$(dirname "$FILE")
+
+            DIR=$(dirname "$FILE") # Directory containing the Dockerfile
+            # Extract component name from Dockerfile name (e.g., Dockerfile-api -> api)
             COMP=$(basename "$FILE" | sed -E 's/^Dockerfile[-\.]?//')
-            COMP=${COMP:-default}
-            TAG="$REPO-$COMP:insecure-$SHA"
-            FULL="$QUAR_IMAGE_REGISTRY/$TAG"
+            COMP=${COMP:-default} # Use 'default' if no component name is found
+
+            TAG="$REPO-$COMP:insecure-$SHA" # Construct image tag
+            FULL="$QUAR_IMAGE_REGISTRY/$TAG" # Construct full image URI
+
+            echo "Building image from $FILE in $DIR with tag $FULL"
             docker build -f "$FILE" -t "$FULL" "$DIR"
+            echo "Pushing image $FULL"
             docker push "$FULL"
-            echo "$FULL" >> /tmp/built.txt
+            echo "$FULL" >> /tmp/built.txt # Add built image URI to the list
           done
 
+      # Collect the list of built images into a JSON array
       - id: collect
         name: Collect built image list
         run: |
-          if [ -s /tmp/built.txt ]; then
+          if [ -s /tmp/built.txt ]; then # Check if the file is not empty
             jq -Rsc 'split("\n")[:-1]' /tmp/built.txt > /tmp/list.json
             echo "images_json=$(cat /tmp/list.json)" >> "$GITHUB_OUTPUT"
           else
-            echo "images_json=[]" >> "$GITHUB_OUTPUT"
-          fi # <--- Added 'fi' here as well for consistency, though not strictly necessary if the 'else' block is the last part of the 'if' statement. It's good practice.
+            echo "images_json=[]" >> "$GITHUB_OUTPUT" # Output an empty JSON array if no images were built
+          fi # <--- Added 'fi' for consistency and clarity
 
+###############################################################################
+# Job 2: Notify Security Team via Email
+###############################################################################
   send_email_security:
-    needs: build_and_push
+    needs: build_and_push # This job depends on the build_and_push job completing successfully
     runs-on: ubuntu-latest
     steps:
       - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq # Install JSON processor
+        run: sudo apt-get update && sudo apt-get install -y jq # Install JSON processor for email payload
 
-      - name: Send email via SendGrid
+      - name: Send email via SendGrid API
         env:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
-          TO_EMAILS: "mailtosiva369@gmail.com,sivaprasad3697@gmail.com"
+          TO_EMAILS: "mailtosiva369@gmail.com,sivaprasad3697@gmail.com" # Comma-separated recipients
           FROM_EMAIL: mailtosiva369@gmail.com
           SUBJECT: "Docker Images Awaiting Security Approval"
-          BODY_TEXT: |
+          BODY_TEXT: | # Multi-line email body
             Hello Security Team,
 
             The following Docker images have been built and are awaiting your review:
@@ -118,8 +148,14 @@ jobs:
 
             Approve this run here:
             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Best regards,
+            GitHub Actions Bot
         run: |
+          # Construct JSON array of recipient objects from comma-separated string
           TO_RECIPIENTS_JSON=$(echo "$TO_EMAILS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk '{printf "{\"email\":\"%s\"},", $0}' | sed 's/,$//' | awk '{print "[" $0 "]"}')
+
+          # Construct the full SendGrid API JSON payload
           JSON_PAYLOAD=$(jq -n \
             --argjson to_recipients "$TO_RECIPIENTS_JSON" \
             --arg from_email "$FROM_EMAIL" \
@@ -132,38 +168,49 @@ jobs:
               content: [{type: "text/plain", value: $body_text}]
             }')
           
+          echo "Sending email to $TO_EMAILS from $FROM_EMAIL with subject: $SUBJECT"
+          
+          # Send email using curl and capture response for error checking
           CURL_RESPONSE=$(curl -s -X POST \
             https://api.sendgrid.com/v3/mail/send \
             -H "Authorization: Bearer $SENDGRID_API_KEY" \
             -H "Content-Type: application/json" \
             -d "$JSON_PAYLOAD" \
-            -w "\nHTTP_STATUS:%{http_code}")
-          
+            -w "\nHTTP_STATUS:%{http_code}") # Capture HTTP status code
+
+          # Extract HTTP status and response body
           HTTP_STATUS=$(echo "$CURL_RESPONSE" | sed -n 's/.*HTTP_STATUS:\([0-9]*\)/\1/p')
           RESPONSE_BODY=$(echo "$CURL_RESPONSE" | sed 's/HTTP_STATUS:[0-9]*//')
           
           echo "SendGrid API Response (HTTP Status: $HTTP_STATUS):"
           echo "$RESPONSE_BODY"
           
+          # Check for successful HTTP status (2xx range)
           if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
             echo "Email sent successfully! HTTP Status: $HTTP_STATUS"
           else
             echo "Error sending email. HTTP Status: $HTTP_STATUS"
-            exit 1 # Fail the step on error
+            exit 1 # Fail the step if email sending was not successful
           fi
 
+###############################################################################
+# Job 3: Security Approval (Manual Approval)
+###############################################################################
   security_approval:
-    needs: send_email_security
+    needs: send_email_security # This job depends on the email notification
     runs-on: ubuntu-latest
-    environment: security # This environment should be configured with required reviewers
+    environment: security # Requires a GitHub Environment named 'security' with reviewers configured
     steps:
       - name: Security Approval
         run: echo "Security approved images: ${{ needs.build_and_push.outputs.built_images }}"
 
+###############################################################################
+# Job 4: Infrastructure Approval and Image Signing (Manual Approval)
+###############################################################################
   infra_approval_and_sign:
-    needs: security_approval
+    needs: security_approval # This job depends on the security approval
     runs-on: ubuntu-latest
-    environment: infra # This environment should be configured with required reviewers
+    environment: infra # Requires a GitHub Environment named 'infra' with reviewers configured
     steps:
       - name: Infra Approval Step
         run: echo "Infra approves to sign images."
@@ -172,9 +219,10 @@ jobs:
         run: |
           IMAGES="${{ needs.build_and_push.outputs.built_images }}"
           echo "Signing images: $IMAGES"
-          # TODO: implement cosign or your signing logic here
-          # Example (placeholder):
+          # TODO: Implement your actual image signing logic here (e.g., using cosign)
+          # Example placeholder for cosign:
           # for IMAGE in $(echo "$IMAGES" | jq -r '.[]'); do
-          #   echo "Signing $IMAGE"
-          #   # cosign sign --yes "$IMAGE"
+          #   echo "Attempting to sign: $IMAGE"
+          #   # cosign sign --yes "$IMAGE" # Replace with your actual signing command
           # done
+          echo "Image signing process completed (placeholder)."
