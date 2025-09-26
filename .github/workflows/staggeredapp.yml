@@ -44,6 +44,7 @@ jobs:
             echo "sha=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
           else
             echo "sha=4b825dc642cb6eb9a060e54bf8d69288fbee4904" >> "$GITHUB_OUTPUT"
+          fi # <--- CORRECTED: Added the missing 'fi'
 
       - id: diff
         name: Detect changed Dockerfiles
@@ -94,11 +95,15 @@ jobs:
             echo "images_json=$(cat /tmp/list.json)" >> "$GITHUB_OUTPUT"
           else
             echo "images_json=[]" >> "$GITHUB_OUTPUT"
+          fi # <--- Added 'fi' here as well for consistency, though not strictly necessary if the 'else' block is the last part of the 'if' statement. It's good practice.
 
   send_email_security:
     needs: build_and_push
     runs-on: ubuntu-latest
     steps:
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq # Install JSON processor
+
       - name: Send email via SendGrid
         env:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
@@ -126,16 +131,31 @@ jobs:
               subject: $subject,
               content: [{type: "text/plain", value: $body_text}]
             }')
-          curl -s -X POST \
+          
+          CURL_RESPONSE=$(curl -s -X POST \
             https://api.sendgrid.com/v3/mail/send \
             -H "Authorization: Bearer $SENDGRID_API_KEY" \
             -H "Content-Type: application/json" \
-            -d "$JSON_PAYLOAD"
+            -d "$JSON_PAYLOAD" \
+            -w "\nHTTP_STATUS:%{http_code}")
+          
+          HTTP_STATUS=$(echo "$CURL_RESPONSE" | sed -n 's/.*HTTP_STATUS:\([0-9]*\)/\1/p')
+          RESPONSE_BODY=$(echo "$CURL_RESPONSE" | sed 's/HTTP_STATUS:[0-9]*//')
+          
+          echo "SendGrid API Response (HTTP Status: $HTTP_STATUS):"
+          echo "$RESPONSE_BODY"
+          
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "Email sent successfully! HTTP Status: $HTTP_STATUS"
+          else
+            echo "Error sending email. HTTP Status: $HTTP_STATUS"
+            exit 1 # Fail the step on error
+          fi
 
   security_approval:
     needs: send_email_security
     runs-on: ubuntu-latest
-    environment: security
+    environment: security # This environment should be configured with required reviewers
     steps:
       - name: Security Approval
         run: echo "Security approved images: ${{ needs.build_and_push.outputs.built_images }}"
@@ -143,7 +163,7 @@ jobs:
   infra_approval_and_sign:
     needs: security_approval
     runs-on: ubuntu-latest
-    environment: infra
+    environment: infra # This environment should be configured with required reviewers
     steps:
       - name: Infra Approval Step
         run: echo "Infra approves to sign images."
@@ -153,3 +173,8 @@ jobs:
           IMAGES="${{ needs.build_and_push.outputs.built_images }}"
           echo "Signing images: $IMAGES"
           # TODO: implement cosign or your signing logic here
+          # Example (placeholder):
+          # for IMAGE in $(echo "$IMAGES" | jq -r '.[]'); do
+          #   echo "Signing $IMAGE"
+          #   # cosign sign --yes "$IMAGE"
+          # done
