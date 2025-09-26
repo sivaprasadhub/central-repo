@@ -220,7 +220,7 @@ jobs:
   security_approval:
     needs: send_email_security # This job depends on the email notification
     runs-on: ubuntu-latest
-    environment: test-approval # Requires a GitHub Environment named 'security' with reviewers configured
+    environment: security # Requires a GitHub Environment named 'security' with reviewers configured
     steps:
       - name: Security Approval
         run: echo "Security approved images: ${{ needs.build_and_push.outputs.built_images }}"
