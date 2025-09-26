@@ -218,7 +218,8 @@ jobs:
 # Job 3: Security Approval (Manual Approval)
 ###############################################################################
   security_approval:
-    needs: build_and_push # This job depends on the email notification
+    #needs: build_and_push # This job depends on the email notification
+    needs: send_email_security
     runs-on: ubuntu-latest
     environment: security # Requires a GitHub Environment named 'security' with reviewers configured
     steps:
