@@ -1,12 +1,10 @@
-name: QA test Pipeline
+name: QA Test Pipeline
 
 on:
   workflow_dispatch:
 
-        jobs:
-          test:
-              runs-on: ubuntu-latest
-                  steps:
-                        - run: echo "QA workflow triggered successfully! check"  
-
-
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "QA workflow triggered successfully! check"
