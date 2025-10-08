@@ -1,13 +1,14 @@
 name: QA Test Pipeline
 
 on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
+  workflow_dispatch:          # manual run
+  repository_dispatch:
+    types: [qa-pipeline]     # dispatched from root workflow
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "QA workflow triggered successfully! check"
+      - run: echo "QA workflow triggered successfully!"
+      - run: echo "Repository: ${{ github.event.client_payload.repository }}"
+      - run: echo "SHA: ${{ github.event.client_payload.sha }}"

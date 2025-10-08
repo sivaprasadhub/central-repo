@@ -1,4 +1,4 @@
-name: Trigger QA Test
+name: Trigger QA Workflow
 
 on:
   workflow_dispatch:
@@ -12,3 +12,8 @@ jobs:
           token: ${{ secrets.BUILDER_REPO_TOKEN }}
           repository: sivaprasadhub/central-repo
           event-type: qa-pipeline
+          client-payload: |
+            {
+              "repository": "${{ github.repository }}",
+              "sha": "${{ github.sha }}"
+            }
