@@ -2,15 +2,15 @@ name: QA Build Pipeline
 
 on:
   workflow_dispatch:
-  repository_dispatch:
-    types: [sub-scheck]
+    repository_dispatch:
+        types: [sub-scheck]
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "QA workflow triggered successfully! check"
-
+        jobs:
+          test:
+              runs-on: ubuntu-latest
+                  steps:
+                        - run: echo "QA workflow triggered successfully! check"
+                        
 
 
 
