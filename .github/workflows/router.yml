@@ -10,7 +10,7 @@ jobs:
       - name: Route to correct environment
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.APP_REPO_TOKEN }}
           script: |
             const env = context.payload.action; // event-type like qa / uat / prod
             const workflowPath = `.github/workflows/${env}/${env}.yml`;
