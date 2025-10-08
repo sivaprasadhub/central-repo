@@ -8,7 +8,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "QA workflow triggered successfully!"
+      - run: echo "QA workflow triggered successfully! check"
 
 
 
