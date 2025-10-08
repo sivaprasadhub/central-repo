@@ -1,0 +1,9 @@
+name: QA Build and Scan
+on:
+  repository_dispatch:
+    types: [qa]
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Running QA pipeline for ${{ github.event.client_payload.repository }}"

@@ -1,0 +1,9 @@
+name: Prod Build and Scan
+on:
+  repository_dispatch:
+    types: [prod]
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Running PROD pipeline for ${{ github.event.client_payload.repository }}"

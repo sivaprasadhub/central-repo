@@ -5,7 +5,7 @@ name: Build ➜ Scan ➜ Promote
 
 on:
   repository_dispatch:
-    types: [dev]
+    types: [app-code-change]
 
 ###############################################################################
 # Global environment variables
