@@ -1,0 +1,14 @@
+name: Trigger QA Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.BUILDER_REPO_TOKEN }}
+          repository: sivaprasadhub/central-repo
+          event-type: qa-pipeline
