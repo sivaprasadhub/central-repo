@@ -1,0 +1,9 @@
+name: Prod Build and Scan
+on:
+  repository_dispatch:
+    types: [uat]
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Running UAT pipeline for ${{ github.event.client_payload.repository }}"
